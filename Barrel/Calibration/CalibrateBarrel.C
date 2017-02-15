@@ -59,7 +59,7 @@ void ClearGlobalParameters(void); // clear global paramters, where calibration c
 double PosToAngle(double pos); // converts a value of POS to an angle theta, used when calculating energy losses
 double ApplyCalibration(double U, double D); // uses calibration parameters to convert from upstream and downstream channel numbers to upstream and downstream energies
 TCanvas* ShowCalibration(int det, int strip); // plots E vs POS for a given detector and strip
-TFile* CreateFileToCalibrate(TString alphaCalibrationFile); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
+TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFileName); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
 
 // MAIN
 void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
@@ -76,7 +76,7 @@ void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_
   TFile* fileToCalibrate = new TFile(plotsFileName);
   if (fileToCalibrate->IsZombie()){
     cout << "No file to calibrate found - creating one now using triple alpha spectra..." << endl;
-    fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName);
+    fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, plotsFileName);
   }
   //fileToCalibrate->Open(plotsFileName);
   TString filename = "inspectBarrelHisto.root"; // the name of the root file made in the line above
@@ -119,7 +119,7 @@ void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_
 
 }
 /*****************************************************************************************************************/
-TFile* CreateFileToCalibrate(TString alphaCalibrationFile){
+TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFileName){
 
   //Nptool data
   TTiaraBarrelData* barrelData = new TTiaraBarrelData;
@@ -191,13 +191,14 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile){
 	}// end loop on tree
   nptDataFile->Close();
 
-  TFile* output = new TFile("inspectBarrelHisto.root", "RECREATE");
+  TFile* output = new TFile(outputRootFileName, "RECREATE");
   output->cd();
   for (int iSide =0; iSide<8 ; iSide++) {
   	for(int iStrip=0 ; iStrip<4 ; iStrip++){
   		nameTitle = barrelFrontStripDU[iSide][iStrip]->GetTitle();
   		if (barrelFrontStripDU[iSide][iStrip]->GetEntries()>0){
   			barrelFrontStripPE[iSide][iStrip]->Write();
+        barrelFrontStripDU[iSide][iStrip]->Write();
   		}
   	}// end of loop
   }
