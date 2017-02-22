@@ -28,10 +28,13 @@
 
 //NPTool headers
 #include "TTiaraBarrelData.h"
+#include "TTiaraBarrelPhysics.h"
 #include "NPCalibrationSource.h"
 #include "NPEnergyLoss.h"
 #include "NPGlobalSystemOfUnits.h"
 #include "NPPhysicalConstants.h"
+#include "NPCalibrationManager.h"
+
 #ifdef NP_SYSTEM_OF_UNITS_H
 using namespace NPUNITS;
 #endif
@@ -60,9 +63,14 @@ double PosToAngle(double pos); // converts a value of POS to an angle theta, use
 double ApplyCalibration(double U, double D); // uses calibration parameters to convert from upstream and downstream channel numbers to upstream and downstream energies
 TCanvas* ShowCalibration(int det, int strip); // plots E vs POS for a given detector and strip
 TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFileName); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
+//functions
+double fUpstream_E(double energy, unsigned short wedge, unsigned short ring); //Changes energy into linearized energy using matchstick data
+double fDownstream_E(double energy, unsigned short wedge, unsigned short sector); //Changes energy into linearized energy using matchstick data
+
+
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+void CalibrateBarrel(TString tripleAlphaFileName="./ER193_0-nptool.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
   //global variable
   //gELossAlphaInSi = new NPL::EnergyLoss("He3_Si.G4table","G4Table",100);
@@ -124,6 +132,20 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
   //Nptool data
   TTiaraBarrelData* barrelData = new TTiaraBarrelData;
 
+//initiate matchstick calibrator
+  CalibrationManager* Cal  = CalibrationManager::getInstance();
+    Cal->CalibrationManager::AddFile("./Matchsticks_Calib.txt");
+
+  for(int i = 0 ; i < 8 ; ++i){
+    for( int j = 0 ; j < 4 ; ++j){
+      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E")   ;
+      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E")   ;
+    cout << "TIARABARREL_"<<"MATCHSTICK_B" << NPL::itoa(i+1) << "_UPSTREAM" <<NPL::itoa(j+1) <<"_E" << std::endl;
+    }
+  }
+
+    Cal->LoadParameterFromFile();
+
   //initiate list of Histograms
   TH1F* barrelFrontStripP[8][4][2]; // 8 sides of the barrel, 4 strips in one side, up and down
   TH2F* barrelFrontStripDU[8][4];  // Downstream vs Upstream
@@ -178,8 +200,8 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 			  unsigned short sideD = barrelData->GetFrontDownstreamEDetectorNbr(iD);
 			  unsigned short stripD  = barrelData->GetFrontDownstreamEStripNbr(iD);
 			  if( sideU==sideD && stripU==stripD ){
-				  double energyU = barrelData->GetFrontUpstreamEEnergy(iU);
-				  double energyD = barrelData->GetFrontDownstreamEEnergy(iD);
+				  double energyU = fUpstream_E(barrelData->GetFrontUpstreamEEnergy(iU),sideU,stripU);
+				  double energyD = fDownstream_E(barrelData->GetFrontDownstreamEEnergy(iD),sideD,stripD);
 				  barrelFrontStripDU[sideU-1][stripU-1]->Fill(energyU,energyD);
 				  // barrelFrontStripDE[sideU-1][stripU-1]->Fill(energyU+energyD,energyD);
 				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(energyU+energyD,(energyU-energyD)/(energyD+energyU));
@@ -498,4 +520,27 @@ TCanvas* ShowCalibration(int det, int strip){
   lineE3->SetLineColor(kRed);
 
   return can;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+double fUpstream_E(double energy, unsigned short side, unsigned short strip){
+  static string name; name = "TIARABARREL/MATCHSTICK_B" ;
+  name+= NPL::itoa( side ) ;
+  name+= "_UPSTREAM" ;
+  name+= NPL::itoa( strip ) ;
+  name+= "_E";
+
+  return CalibrationManager::getInstance()->ApplyCalibration(name,
+      energy );
+}
+///////////////////////////////////////////////////////////////////////////////
+double fDownstream_E(double energy, unsigned short side, unsigned short strip){
+  static string name; name ="TIARABARREL/MATCHSTICK_B" ;
+  name+= NPL::itoa( side ) ;
+  name+= "_DOWNSTREAM" ;
+  name+= NPL::itoa( strip ) ;
+  name+= "_E"; 
+  return CalibrationManager::getInstance()->ApplyCalibration(name,
+      energy );
 }
