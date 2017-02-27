@@ -146,7 +146,7 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 
   //initiate list of Histograms
   TH1F* barrelFrontStripP[8][4][2]; // 8 sides of the barrel, 4 strips in one side, up and down
-  TH2F* barrelFrontStripDU[8][4];  // Downstream vs Upstream
+  TH2F* barrelFrontStripUD[8][4];  // Downstream vs Upstream
   TH2F* barrelFrontStripPE[8][4]; // Upstream-Downstream/(sum) vs Upstream+Downstream
   TString nameTitle; // same as NPTool calibration token
   for (int iSide =0; iSide<8 ; iSide++) {
@@ -158,7 +158,7 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 		}
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UD%d_E",iSide+1,iStrip+1);
-		  barrelFrontStripDU[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,50,1550);
+		  barrelFrontStripUD[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,50,1550);
 		  nameTitle =Form("TIARABARREL_B%d_PE%d_E",iSide+1,iStrip+1); // the ones we're interested in making
 		  barrelFrontStripPE[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,-1,+1);
 		}
@@ -200,7 +200,7 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 			  if( sideU==sideD && stripU==stripD ){
 				  double energyU = fUpstream_E(barrelData->GetFrontUpstreamEEnergy(iU),sideU,stripU);
 				  double energyD = fDownstream_E(barrelData->GetFrontDownstreamEEnergy(iD),sideD,stripD);
-				  barrelFrontStripDU[sideU-1][stripU-1]->Fill(energyU,energyD);
+				  barrelFrontStripUD[sideU-1][stripU-1]->Fill(energyD,energyU);
 				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(energyU+energyD,(energyU-energyD)/(energyD+energyU));
 				  if(energyD>0 && (energyD/(energyU+energyD)>0.90)) {barrelFrontStripP[sideU-1][stripU-1][1]->Fill((energyU-energyD)/(energyU+energyD));}
 				}
@@ -213,10 +213,10 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
   output->cd();
   for (int iSide =0; iSide<8 ; iSide++) {
   	for(int iStrip=0 ; iStrip<4 ; iStrip++){
-  		nameTitle = barrelFrontStripDU[iSide][iStrip]->GetTitle();
-  		if (barrelFrontStripDU[iSide][iStrip]->GetEntries()>0){
+  		nameTitle = barrelFrontStripUD[iSide][iStrip]->GetTitle();
+  		if (barrelFrontStripUD[iSide][iStrip]->GetEntries()>0){
   			barrelFrontStripPE[iSide][iStrip]->Write();
-        barrelFrontStripDU[iSide][iStrip]->Write();
+        barrelFrontStripUD[iSide][iStrip]->Write();
   		}
   	}// end of loop
   }
