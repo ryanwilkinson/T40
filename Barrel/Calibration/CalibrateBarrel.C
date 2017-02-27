@@ -152,15 +152,15 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
   for (int iSide =0; iSide<8 ; iSide++) {
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_PU",iSide+1,iStrip+1);
-	    barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,1500,50,1550);
+	    barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,1600,-50,1550);
 		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_PD",iSide+1,iStrip+1);
-		  barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,1500,50,1550);
+		  barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,1600,-50,1550);
 		}
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UD%d_E",iSide+1,iStrip+1);
-		  barrelFrontStripUD[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,50,1550);
+		  barrelFrontStripUD[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1600,-50,1550,600,-50,1550);
 		  nameTitle =Form("TIARABARREL_B%d_PE%d_E",iSide+1,iStrip+1); // the ones we're interested in making
-		  barrelFrontStripPE[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,-1,+1);
+		  barrelFrontStripPE[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1600,-50,1550,500,-1,+1);
 		}
   }
 
