@@ -19,7 +19,8 @@ using namespace std;
 
 
 
-void CalibrateHyball(TString pathToFile="../../TapeData/Root/EXPT4/ER191_0.root"){
+void CalibrateHyball(TString pathToFile="../../TapeData/Root/EXPT4/R3_0.root",
+					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -36,8 +37,8 @@ double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 //spectra values
 int lowerbound, upperbound, nobins;
 
-    lowerbound = 1200;
-    upperbound = 2500;
+    lowerbound = 600; //1200
+    upperbound = 2000; //2500
     nobins = (upperbound - lowerbound)/2;
 
 //initiate list of Histograms
@@ -64,7 +65,7 @@ hyballEnergyOffsetSector= new TH1F (nameTitle,nameTitle,200,-100,100);
 
 //initiate matchstick calibrator
   CalibrationManager* Cal  = CalibrationManager::getInstance();
-    Cal->CalibrationManager::AddFile("./Matchsticks_Calib.txt");
+    Cal->CalibrationManager::AddFile(pathToMatchsticks.Data());
 
   for(int i = 0 ; i < 6 ; ++i){
     for( int j = 0 ; j < 24 ; ++j){
@@ -103,7 +104,7 @@ TTree* tree = (TTree*) nptDataFile->Get("T40Tree");
 
 	//Loop on tree and fill the histograms
 	int entries = tree->GetEntries();
-	//entries = 100000;
+	entries = 10000000;
 	cout << " INFO: Number of entries in tree: " << entries << endl;  
 	for(int i = 0 ; i < entries; i++) {
 	  if (i%(entries/100)) printf("\r treated %2.f percent ",100.0*i/entries);
