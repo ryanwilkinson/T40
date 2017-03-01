@@ -88,6 +88,7 @@ void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER
   //if (fileToCalibrate->IsZombie()){
     cout << "No file to calibrate found - creating one now using triple alpha spectra..." << endl;
     fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, pathToMatchsticks, plotsFileName);
+	fileToCalibrate->Write();
   }
 	else {
 		cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
