@@ -62,7 +62,8 @@ TCanvas* ShowCalibration(int det, int strip); // plots E vs POS for a given dete
 TFile* CreateFileToCalibrate(TString alphaCalibrationFile); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+//void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+void CalibrateBarrel(TString tripleAlphaFileName="/home/shuyaota/midas2nptool/root/EXPT5/ER395_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
   //global variable
   //gELossAlphaInSi = new NPL::EnergyLoss("He3_Si.G4table","G4Table",100);
