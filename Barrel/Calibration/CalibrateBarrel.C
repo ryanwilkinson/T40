@@ -82,13 +82,21 @@ void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER
   outputFile.open("Barrel_Calib.txt");
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
 
-  TFile* fileToCalibrate = new TFile(plotsFileName);
-  if (fileToCalibrate->IsZombie()){
+  TFile* fileToCalibrate;
+  if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
+  //TFile* fileToCalibrate = new TFile(plotsFileName);
+  //if (fileToCalibrate->IsZombie()){
     cout << "No file to calibrate found - creating one now using triple alpha spectra..." << endl;
     fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, pathToMatchsticks, plotsFileName);
   }
-  //fileToCalibrate->Open(plotsFileName);
-  //TString filename = "inspectBarrelHisto.root"; // the name of the root file made in the line above
+	else {
+		cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+		cout << " The file " << plotsFileName << " is found in the present directory, it will be used for calibration " << endl;
+		cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+		fileToCalibrate = new TFile(plotsFileName,"UPDATE");
+		//return;
+		}
+	fileToCalibrate->cd();
 
   for (int detector=1; detector<=8; detector++){
     TString name = Form("Barrel%d",detector);
@@ -220,7 +228,7 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
   		nameTitle = barrelFrontStripUD[iSide][iStrip]->GetTitle();
   		if (barrelFrontStripUD[iSide][iStrip]->GetEntries()>0){
   			barrelFrontStripPE[iSide][iStrip]->Write();
-        barrelFrontStripUD[iSide][iStrip]->Write();
+            barrelFrontStripUD[iSide][iStrip]->Write();
   		}
   	}// end of loop
   }
