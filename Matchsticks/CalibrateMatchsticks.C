@@ -23,7 +23,7 @@
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
-void CalibrateMatchsticks(TString pathToFile="../ER411_0-nptool.root"){
+void CalibrateMatchsticks(TString pathToFile="../../Tiara/TapeData/Root/EXPT5/ER411_0.root"){
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -264,11 +264,11 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
-    //Print to screen any channels with bad spectra
-    if(badchannels.size() > 0){
+    //Print to screen any channels with bad spectra    
+	if(badchannels.size() > 0){
         int badch = badchannels.size();
         std::cout << "\nWARNING: LESS THAN 7 PEAKS FOUND IN MATCHSTICKS SPECTRUM FOR CHANNELS: " << std::endl;
-        for(int i ; i < badch ; i++){
+        for(int i = 0 ; i < badch ; i++){
             std::cout << badchannels[i] << std::endl;
         }
         std::cout << ".\nSETTING COEFFICIENTS TO ZERO - BAD SPECTRA.\nPLEASE CHECK THIS CHANNEL TO VERIFY THERE ARE SUFFICIENT PEAKS IN THIS SPECTRA." << std::endl;
@@ -393,12 +393,13 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
 
         //Attempt to remove any noise peak at lowest channels
         //May need adjusting dependant on data
-        if(PeakPosition[10]-PeakPosition[9]<200 && PeakPosition[11]-PeakPosition[0]>500 && PeakPosition[9]-PeakPosition[8]<200){
-        PeakFitPosition.erase(PeakFitPosition.begin()+0);}
+        //if(PeakPosition[10]-PeakPosition[9]<200 && PeakPosition[11]-PeakPosition[0]>500 && PeakPosition[9]-PeakPosition[8]<200){
+        //PeakFitPosition.erase(PeakFitPosition.begin()+0);}
 
         //vector for the pulser voltages in mV, may need adjusting depending on the
         //physical input from the pulser
         vector<double> MatchstickVoltage;
+        MatchstickVoltage.push_back(050);
         MatchstickVoltage.push_back(100);
         MatchstickVoltage.push_back(200);
         MatchstickVoltage.push_back(300);
@@ -430,7 +431,9 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         graph->GetXaxis()->CenterTitle();
         graph->GetYaxis()->SetTitle("Pulser Voltage (mV)");
         graph->GetYaxis()->CenterTitle(); 
-        TF1 *polfit = new TF1("polfit","pol2(0)",100,3950);   
+        graph->SetMarkerStyle(20); 
+        //TF1 *polfit = new TF1("polfit","pol2(0)",100,3950);   
+        TF1 *polfit = new TF1("polfit","pol2(0)",0,1300);   
         graph->Fit(polfit,"QR");
         gStyle -> SetOptStat(0);
         gStyle -> SetOptFit(111);
