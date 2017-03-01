@@ -2,6 +2,8 @@
 #include <iostream>
 #include <fstream>
 
+using namespace std;
+
 //Root
 #include "TFile.h"
 #include "TTree.h"
@@ -9,7 +11,7 @@
 
 //NPTool
 #include "TTiaraHyballData.h"
-#include "TTiaraHyballPhysics.h"
+#include "NPVDetector.h" // NPL::itoa fucntion
 #include "NPEnergyLoss.h"
 #include "NPCalibrationSource.h"
 #include "NPSiliconCalibrator.h"
@@ -17,7 +19,7 @@
 
 
 
-void CalibrateHyball(TString pathToFile="./ER192_0-nptool.root"){
+void CalibrateHyball(TString pathToFile="../../TapeData/Root/EXPT4/ER191_0.root"){
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -52,6 +54,13 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		hyballSector[iWedge][iSector]= new TH1F (nameTitle,nameTitle,nobins,lowerbound,upperbound);
 		}
 	}
+
+TH1F* hyballEnergyOffsetRing; // after Linearization, this should peak at zero
+TH1F* hyballEnergyOffsetSector; // after Linearization, this should peak at zero
+nameTitle =Form("TIARAHYBALL_Offset_Ring");
+hyballEnergyOffsetRing= new TH1F (nameTitle,nameTitle,200,-100,100);
+nameTitle =Form("TIARAHYBALL_Offset_Sector");
+hyballEnergyOffsetSector= new TH1F (nameTitle,nameTitle,200,-100,100);
 
 //initiate matchstick calibrator
   CalibrationManager* Cal  = CalibrationManager::getInstance();
@@ -137,14 +146,15 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 	for(int iRing=0 ; iRing<16 ; iRing++){
 		coeffset.clear();
 		nameTitle = hyballRing[iWedge][iRing]->GetTitle();
-		//std::cout << "Number of entries (must be >300) is: " << hyballRing[iWedge][iRing]->GetEntries() << std::endl; // used for debugging
+		//cout << "Number of entries (must be >300) is: " << hyballRing[iWedge][iRing]->GetEntries() << endl; // used for debugging
 		if (hyballRing[iWedge][iRing]->GetEntries()>100){
 			double value = calibrator->SimpleCalibration(hyballRing[iWedge][iRing], alphaSource, ELossAlphaInAl, coeffset,lowerbound,upperbound);
-			//std::cout << "value (must be >=0 for non-zero calibration parameters) is " << value << std::endl; used for debugging
+			//cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; used for debugging
 			if (value>=0){  
 				hyballRing[iWedge][iRing]->Write();
 				coeff.push_back(coeffset); 
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
+				hyballEnergyOffsetRing->Fill(coeffset[0]);
 				}
 			else if (value==-3){
                 //error code for not enough peaks in spectra
@@ -169,14 +179,15 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 	for(int iSector=0 ; iSector<8 ; iSector++){
 		coeffset.clear();
 		nameTitle = hyballSector[iWedge][iSector]->GetTitle();
-		//std::cout << "Number of entries (must be >100) is: " << hyballSector[iWedge][iSector]->GetEntries() << std::endl; // used for debugging
+		//cout << "Number of entries (must be >100) is: " << hyballSector[iWedge][iSector]->GetEntries() << endl; // used for debugging
 		if(hyballSector[iWedge][iSector]->GetEntries()>100){
 			double value = calibrator->SimpleCalibration(hyballSector[iWedge][iSector], alphaSource, ELossAlphaInAl, coeffset, lowerbound,upperbound);
-			//std::cout << "value (must be >=0 for non-zero calibration parameters) is " << value << std::endl; // used for debugging
+			//cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; // used for debugging
 			if (value>=0){
 				hyballSector[iWedge][iSector]->Write();
 				coeff.push_back(coeffset); 
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
+				hyballEnergyOffsetSector->Fill(coeffset[0]);
 				}
 			else if (value==-3){
                 //error code for not enough peaks in spectra
@@ -197,14 +208,17 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
+hyballEnergyOffsetRing->Write();
+hyballEnergyOffsetSector->Write();
+
     //Print to screen any channels with bad spectra
     if(badchannels.size() > 0){
         int badch = badchannels.size();
-        std::cout << "\nWARNING: THREE PEAKS NOT FOUND IN TRIPLE-ALPHA SPECTRUM FOR CHANNELS: " << std::endl;
-        for(int i ; i < badch ; i++){
-            std::cout << badchannels[i] << std::endl;
+        cout << "\nWARNING: THREE PEAKS NOT FOUND IN TRIPLE-ALPHA SPECTRUM FOR CHANNELS: " << endl;
+        for(int i=0 ; i < badch ; i++){
+            cout << badchannels[i] << endl;
         }
-        std::cout << "SETTING GAIN AND OFFSET TO ZERO - BAD SPECTRUM.\nPLEASE CHECK THESE CHANNELS TO VERIFY THERE ARE NOT THREE PEAKS IN THIS SPECTRUM." << std::endl;
+        cout << "SETTING GAIN AND OFFSET TO ZERO - BAD SPECTRUM.\nPLEASE CHECK THESE CHANNELS TO VERIFY THERE ARE NOT THREE PEAKS IN THIS SPECTRUM." << endl;
     }
 
 output.Close();
