@@ -70,7 +70,7 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root", 
+void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root",
 					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
 					 TString plotsFileName="./inspectBarrelHisto.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
@@ -549,7 +549,7 @@ double fDownstream_E(double energy, unsigned short side, unsigned short strip){
   name+= NPL::itoa( side ) ;
   name+= "_DOWNSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_E"; 
+  name+= "_E";
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
