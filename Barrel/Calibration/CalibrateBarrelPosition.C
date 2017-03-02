@@ -115,10 +115,10 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
   TString nameTitle; // same as NPTool calibration token
   for (int iSide =0; iSide<8 ; iSide++) {
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
-		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_PU",iSide+1,iStrip+1);
-	      barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,1600,-50,1550);
-		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_PD",iSide+1,iStrip+1);
-		  barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,1600,-50,1550);
+		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_P",iSide+1,iStrip+1);
+	      barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,400,+0.2,+0.8);
+		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_P",iSide+1,iStrip+1);
+		  barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,400,-0.8,-0.2);
 		}
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UD%d_E",iSide+1,iStrip+1);
@@ -166,9 +166,9 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
 				  double energyD = fDownstream_E(barrelData->GetFrontDownstreamEEnergy(iD),sideD,stripD);
 				  barrelFrontStripUD[sideU-1][stripU-1]->Fill(energyD,energyU);
 				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(energyU+energyD,(energyU-energyD)/(energyD+energyU));
-				  if(energyD>0 && (energyD/(energyU+energyD)>0.90))
+				  if(energyU+energyD>650 && (energyD/(energyU+energyD)>0.60))
 				    barrelFrontStripP[sideU-1][stripU-1][0]->Fill((energyU-energyD)/(energyU+energyD));
-				  if(energyU>0 && (energyU/(energyU+energyD)>0.90))
+				  if(energyU+energyD>650 && (energyU/(energyU+energyD)>0.60))
 				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill((energyU-energyD)/(energyU+energyD)); 
 			 }
 		  }
