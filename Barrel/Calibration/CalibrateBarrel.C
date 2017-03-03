@@ -69,9 +69,20 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
+//<<<<<<< HEAD
+//<<<<<<< HEAD:CalibrateBarrel.C
+//void CalibrateBarrel(TString tripleAlphaFileName="./calibrationData/EXPT4/ER193_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+//void CalibrateBarrel(TString tripleAlphaFileName="/home/shuyaota/midas2nptool/root/EXPT5/ER395_0.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+//=======
+//void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root", 
+//					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
+//					 TString plotsFileName="./inspectBarrelHisto.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+//>>>>>>> be438ff53efbc59a367d780433578ae8ba195ea7:Barrel/Calibration/CalibrateBarrel.C
+//=======
 void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root",
 					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
 					 TString plotsFileName="./inspectBarrelHisto2.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+//>>>>>>> 326dfc8dbd399c07ee62b4d5dbd869736bdb7728
 
   //global variable
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);

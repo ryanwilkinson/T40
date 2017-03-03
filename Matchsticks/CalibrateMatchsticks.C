@@ -1,3 +1,7 @@
+// Run using ".x CalibrateMatchsticks.C+"
+// Run for every file with matchsticks data.
+
+
 //c++
 #include <iostream>
 #include <fstream>
@@ -23,7 +27,8 @@
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
-void CalibrateMatchsticks(TString pathToFile="../../Tiara/TapeData/Root/EXPT5/ER411_0.root"){
+void CalibrateMatchsticks(TString pathToFile="./R1_0-nptool.root"){
+//./MatchstickData/ER411_0-nptool.root"){
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -47,9 +52,9 @@ TString nameTitle; // same as NPTool calibration token
 //create hists for barrel info
 for (int iSide =0; iSide<8 ; iSide++) {
 	for(int iStrip=0 ; iStrip<4 ; iStrip++){
-		nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
+		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
 		barrelFrontStrip[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,900,0,4050);
-		nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
+		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
 		barrelFrontStrip[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,900,0,4050);
 		}
 }
@@ -57,11 +62,11 @@ for (int iSide =0; iSide<8 ; iSide++) {
 //create hist for hyball info
 for (int iWedge =0; iWedge<6 ; iWedge++) {
 	for(int iRing=0 ; iRing<16 ; iRing++){
-		nameTitle =Form("TIARAHYBALL_D%d_STRIP_RING%d_E",iWedge+1,iRing+1);
+		nameTitle =Form("TIARAHYBALL_D%d_STRIP_RING%d_MATCHSTICK",iWedge+1,iRing+1);
 		hyballRing[iWedge][iRing]= new TH1F (nameTitle,nameTitle,4050,0,4050);
 		}
 	for(int iSector=0 ; iSector<8 ; iSector++){
-		nameTitle =Form("TIARAHYBALL_D%d_STRIP_SECTOR%d_E",iWedge+1,iSector+1);
+		nameTitle =Form("TIARAHYBALL_D%d_STRIP_SECTOR%d_MATCHSTICK",iWedge+1,iSector+1);
 		hyballSector[iWedge][iSector]= new TH1F (nameTitle,nameTitle,4050,0,4050);
 		}
 	}
@@ -179,14 +184,14 @@ for (int iSide =0; iSide<8 ; iSide++) {
                 badchannels.push_back(nameTitle);
 
 				if (coeffset[1]==-1){
-					coeffset[1]=0;
+					coeffset[1]=1;
 					}			
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
 				}
 			}
 		else {
-			coeffset.push_back(0); coeffset.push_back(0); coeffset.push_back(0);				
+			coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
 			}
@@ -218,14 +223,14 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
                 badchannels.push_back(nameTitle);
  
 				if (coeffset[1]==-1){
-					coeffset[1]=0;
+					coeffset[1]=1;
 					}			
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
 				}
 			}
 		else {
-			coeffset.push_back(0); coeffset.push_back(0); coeffset.push_back(0);				
+			coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
 			}
@@ -250,28 +255,28 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
                 //push channel name to vector for outputting to screen
                 badchannels.push_back(nameTitle);
 				if (coeffset[1]==-1){
-					coeffset[1]=0;
+					coeffset[1]=1;
 					}			
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
 				}
 			}
 		else {
-			coeffset.push_back(0); coeffset.push_back(0); coeffset.push_back(0);				
+			coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
 			}
 		}
 	}
 
-    //Print to screen any channels with bad spectra    
-	if(badchannels.size() > 0){
+    //Print to screen any channels with bad spectra
+    if(badchannels.size() > 0){
         int badch = badchannels.size();
         std::cout << "\nWARNING: LESS THAN 7 PEAKS FOUND IN MATCHSTICKS SPECTRUM FOR CHANNELS: " << std::endl;
-        for(int i = 0 ; i < badch ; i++){
+        for(int i ; i < badch ; i++){
             std::cout << badchannels[i] << std::endl;
         }
-        std::cout << ".\nSETTING COEFFICIENTS TO ZERO - BAD SPECTRA.\nPLEASE CHECK THIS CHANNEL TO VERIFY THERE ARE SUFFICIENT PEAKS IN THIS SPECTRA." << std::endl;
+        std::cout << "\nSETTING COEFFICIENTS TO ZERO - BAD SPECTRA.\nPLEASE CHECK THIS CHANNEL TO VERIFY THERE ARE SUFFICIENT PEAKS IN THIS SPECTRA." << std::endl;
     }
 
 output.Close();
@@ -321,6 +326,7 @@ output.Close();
             string value;
             while(ls>>value){
                 values.push_back(value);
+
             }
             if (values.size())
                 readvalues.push_back(values);
@@ -339,7 +345,7 @@ output.Close();
                 //convert the data from file from string to double for comparison to new data.
                 element1 = stod(readvalues[j][1]);
                 element2 = stod(readvalues[j][2]);
-                if((element1 == 0 && element2 == 0) || (coeff[j][1] != 0 && coeff[j][2] != 0)){
+                if((element1 == 0 && element2 == 1) || (coeff[j][1] != 0 && coeff[j][2] != 0)){
                     myfile << nptToken.at(j) << " " ;
                     for(unsigned int k = 0 ; k < coeff.at(j).size() ; k++)
 			            myfile << coeff.at(j).at(k)<<" " ;
@@ -393,14 +399,14 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
 
         //Attempt to remove any noise peak at lowest channels
         //May need adjusting dependant on data
-        //if(PeakPosition[10]-PeakPosition[9]<200 && PeakPosition[11]-PeakPosition[0]>500 && PeakPosition[9]-PeakPosition[8]<200){
-        //PeakFitPosition.erase(PeakFitPosition.begin()+0);}
+        if(PeakFitPosition[10]-PeakFitPosition[9]<200 && PeakFitPosition[11]-PeakFitPosition[0]>500 && PeakFitPosition[9]-PeakFitPosition[8]<200){
+        PeakFitPosition.erase(PeakFitPosition.begin()+0);}
+
 
         //vector for the pulser voltages in mV, may need adjusting depending on the
         //physical input from the pulser
         vector<double> MatchstickVoltage;
-        MatchstickVoltage.push_back(050);
-        MatchstickVoltage.push_back(100);
+        MatchstickVoltage.push_back(0100);
         MatchstickVoltage.push_back(200);
         MatchstickVoltage.push_back(300);
         MatchstickVoltage.push_back(400);
@@ -431,9 +437,16 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         graph->GetXaxis()->CenterTitle();
         graph->GetYaxis()->SetTitle("Pulser Voltage (mV)");
         graph->GetYaxis()->CenterTitle(); 
-        graph->SetMarkerStyle(20); 
-        //TF1 *polfit = new TF1("polfit","pol2(0)",100,3950);   
-        TF1 *polfit = new TF1("polfit","pol2(0)",0,1300);   
+
+        //Ignore anything higher than 3980 from fit to avoid warping
+        int peakfitsize = PeakFitPosition.size() - 1;
+        int fitbegin = PeakFitPosition[0];
+        int fitend = PeakFitPosition[peakfitsize];
+        if(PeakFitPosition[peakfitsize]>3850){
+            fitend = PeakFitPosition[(peakfitsize-1) ];}
+        else{fitend = PeakFitPosition[peakfitsize];}
+
+        TF1 *polfit = new TF1("polfit","pol2(0)",fitbegin,fitend);   
         graph->Fit(polfit,"QR");
         gStyle -> SetOptStat(0);
         gStyle -> SetOptFit(111);
