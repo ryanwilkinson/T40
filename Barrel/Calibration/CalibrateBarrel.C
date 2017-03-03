@@ -28,7 +28,7 @@
 
 //NPTool headers
 #include "TTiaraBarrelData.h"
-#include "TTiaraBarrelPhysics.h"
+#include "NPVDetector.h" // NPL::itoa fucntion
 #include "NPCalibrationSource.h"
 #include "NPEnergyLoss.h"
 #include "NPGlobalSystemOfUnits.h"
@@ -52,7 +52,7 @@ NPL::EnergyLoss* gELossAlphaInSi ;
 
 //functions
 TH2D* FindHistogram(TString histname, TString filename); // finds a histogram "histname" in file "filename"
-void SliceHistogram(TH2D* hist, int binstep,float ylow, float yup); // slices histogram "hist" between ylow and yup in steps of "binstep" bins
+void SliceHistogram(TH2D* hist, int binstep,float ylow, float yup, float xmin, float xmax); // slices histogram "hist" between ylow and yup in steps of "binstep" bins, and select the x-range
 vector<double> FitOneSlice(TH1D* hist); // fits a single slice of histogram "hist"
 int Minimise(void); // numerical minimisation function which produces the final calibration parameters
 double GetChiSquared(const double parameters[]); // returns a chi squared value to quantify the "goodness of fit" of a set of paramters "paramters[]" relative to the data
@@ -62,18 +62,18 @@ void ClearGlobalParameters(void); // clear global paramters, where calibration c
 double PosToAngle(double pos); // converts a value of POS to an angle theta, used when calculating energy losses
 double ApplyCalibration(double U, double D); // uses calibration parameters to convert from upstream and downstream channel numbers to upstream and downstream energies
 TCanvas* ShowCalibration(int det, int strip); // plots E vs POS for a given detector and strip
-TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFileName); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
-//functions
+TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchsticks, TString outputRootFileName); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
 double fUpstream_E(double energy, unsigned short wedge, unsigned short ring); //Changes energy into linearized energy using matchstick data
 double fDownstream_E(double energy, unsigned short wedge, unsigned short sector); //Changes energy into linearized energy using matchstick data
 
 
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="./ER193_0-nptool.root", TString plotsFileName="./inspectBarrelHisto.root"){ // tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+void CalibrateBarrel(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root",
+					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
+					 TString plotsFileName="./inspectBarrelHisto2.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
   //global variable
-  //gELossAlphaInSi = new NPL::EnergyLoss("He3_Si.G4table","G4Table",100);
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);
 
   //local variable
@@ -81,13 +81,21 @@ void CalibrateBarrel(TString tripleAlphaFileName="./ER193_0-nptool.root", TStrin
   outputFile.open("Barrel_Calib.txt");
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
 
-  TFile* fileToCalibrate = new TFile(plotsFileName);
-  if (fileToCalibrate->IsZombie()){
-    cout << "No file to calibrate found - creating one now using triple alpha spectra..." << endl;
-    fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, plotsFileName);
+  TFile* fileToCalibrate;
+  if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
+	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+    cout << " No file to calibrate found - creating one now using triple alpha spectra..." << endl;
+	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+    fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, pathToMatchsticks, plotsFileName);
+	fileToCalibrate->Write();
   }
-  //fileToCalibrate->Open(plotsFileName);
-  TString filename = "inspectBarrelHisto.root"; // the name of the root file made in the line above
+  else {
+	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+	cout << " The file " << plotsFileName << " is found in the present directory, it will be used for calibration " << endl;
+	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+	fileToCalibrate = new TFile(plotsFileName,"UPDATE");
+  }
+  fileToCalibrate->cd();
 
   for (int detector=1; detector<=8; detector++){
     TString name = Form("Barrel%d",detector);
@@ -95,29 +103,29 @@ void CalibrateBarrel(TString tripleAlphaFileName="./ER193_0-nptool.root", TStrin
     can[detector-1]->Divide(2,2); // splits each canvas into 4; one for each strip in a detector
     for (int strip=1; strip<=4; strip++){
       ClearGlobalParameters(); // clear parameters
-	    TString hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
-	    TH2D* h2 = FindHistogram(hname, filename);
+	  TString hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
+	  TH2D* h2 = FindHistogram(hname, plotsFileName);
       can[detector-1]->cd(strip);
       if (h2 && h2->Integral()) {
         cout << " Working on " << hname << endl;
-			  SliceHistogram(h2,10,-0.67,0.67); // slice between -0.67 and 0.67 with a step of 10 bins
-			  int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
+	    SliceHistogram(h2,10,-0.67,0.67,600,1300); // slice between -0.67 and 0.67 with a step of 10 bins
+		int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
         ShowControl2DSpectra(h2,can[detector-1],strip);
         double BDtune=1; // this variable allows one to change the degree of the ballistic deficit (BD) if necessary
-			  outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E " << gFinalCalParam[1] << " " << gFinalCalParam[0] << endl; // calibration coefficients and nptool tokens
-			  outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E " << gFinalCalParam[3] << " " << gFinalCalParam[2] << endl;
-			  if(-gFinalCalParam[4]<0) { // BD should be positive
+	    outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E " << gFinalCalParam[1] << " " << gFinalCalParam[0] << endl; // calibration coefficients and nptool tokens
+		outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E " << gFinalCalParam[3] << " " << gFinalCalParam[2] << endl;
+		if(-gFinalCalParam[4]<0) { // BD should be positive
           cout << " WARNING: Ballistic deficit is negative, replacing by value zero "<<endl;
-				  BDtune=0;
-			  }
+		  BDtune=0;
+		  }
         outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
-			  outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << 0 << " " << 0.66 << endl;
+		outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << 0 << " " << 0.66 << endl;
         ShowCalibration(detector, strip)->Draw(); // on separate graph
       }
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
 		    outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
 		    outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
-	      outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
+	        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
 		    outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << 0 << " " << 0.66 << endl;
       }
     }
@@ -127,42 +135,39 @@ void CalibrateBarrel(TString tripleAlphaFileName="./ER193_0-nptool.root", TStrin
 
 }
 /*****************************************************************************************************************/
-TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFileName){
+TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchsticks, TString outputRootFileName){
 
   //Nptool data
   TTiaraBarrelData* barrelData = new TTiaraBarrelData;
 
 //initiate matchstick calibrator
   CalibrationManager* Cal  = CalibrationManager::getInstance();
-    Cal->CalibrationManager::AddFile("./Matchsticks_Calib.txt");
-
+  Cal->AddFile(pathToMatchsticks.Data());
   for(int i = 0 ; i < 8 ; ++i){
     for( int j = 0 ; j < 4 ; ++j){
       Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E")   ;
       Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E")   ;
-    cout << "TIARABARREL_"<<"MATCHSTICK_B" << NPL::itoa(i+1) << "_UPSTREAM" <<NPL::itoa(j+1) <<"_E" << std::endl;
     }
   }
-
-    Cal->LoadParameterFromFile();
+  Cal->LoadParameterFromFile();
 
   //initiate list of Histograms
-  TH1F* barrelFrontStripP[8][4][2]; // 8 sides of the barrel, 4 strips in one side, up and down
-  TH2F* barrelFrontStripDU[8][4];  // Downstream vs Upstream
+  TH1F* barrelFrontStripP[8][4][2]; // 8 sides of the barrel, 4 strips in one side, up (1) and down (0)
+  TH2F* barrelFrontStripUD[8][4];  // Downstream vs Upstream
   TH2F* barrelFrontStripPE[8][4]; // Upstream-Downstream/(sum) vs Upstream+Downstream
   TString nameTitle; // same as NPTool calibration token
   for (int iSide =0; iSide<8 ; iSide++) {
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
-		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_PU",iSide+1,iStrip+1);
-	    barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,1500,50,1550);
-		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_PD",iSide+1,iStrip+1);
-		  barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,1500,50,1550);
+		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_P",iSide+1,iStrip+1);
+	      barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,400,+0.2,+0.8);
+		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_P",iSide+1,iStrip+1);
+		  barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,400,-0.8,-0.2);
 		}
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UD%d_E",iSide+1,iStrip+1);
-		  barrelFrontStripDU[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,50,1550);
+		  barrelFrontStripUD[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1600,-50,1550,600,-50,1550);
 		  nameTitle =Form("TIARABARREL_B%d_PE%d_E",iSide+1,iStrip+1); // the ones we're interested in making
-		  barrelFrontStripPE[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1500,50,1550,500,-1,+1);
+		  barrelFrontStripPE[iSide][iStrip]= new TH2F (nameTitle,nameTitle,1600,-50,1550,500,-1,+1);
 		}
   }
 
@@ -192,23 +197,24 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 	  unsigned int sizeUE = barrelData->GetFrontUpstreamEMult();
 	  unsigned int sizeDE = barrelData->GetFrontDownstreamEMult();
 
-    //match and fill 2D histograms
+      //match and fill 2D histograms
 	  for(unsigned int iU = 0 ; iU < sizeUE ; ++iU){
 		  unsigned short sideU = barrelData->GetFrontUpstreamEDetectorNbr(iU);
 		  unsigned short stripU  = barrelData->GetFrontUpstreamEStripNbr(iU);
-	  	for(unsigned int iD = 0 ; iD < sizeDE ; ++iD){
+	      for(unsigned int iD = 0 ; iD < sizeDE ; ++iD){
 			  unsigned short sideD = barrelData->GetFrontDownstreamEDetectorNbr(iD);
 			  unsigned short stripD  = barrelData->GetFrontDownstreamEStripNbr(iD);
 			  if( sideU==sideD && stripU==stripD ){
 				  double energyU = fUpstream_E(barrelData->GetFrontUpstreamEEnergy(iU),sideU,stripU);
 				  double energyD = fDownstream_E(barrelData->GetFrontDownstreamEEnergy(iD),sideD,stripD);
-				  barrelFrontStripDU[sideU-1][stripU-1]->Fill(energyU,energyD);
-				  // barrelFrontStripDE[sideU-1][stripU-1]->Fill(energyU+energyD,energyD);
+				  barrelFrontStripUD[sideU-1][stripU-1]->Fill(energyD,energyU);
 				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(energyU+energyD,(energyU-energyD)/(energyD+energyU));
-				  if(energyD>0 && (energyD/(energyU+energyD)>0.90)) {barrelFrontStripP[sideU-1][stripU-1][1]->Fill((energyU-energyD)/(energyU+energyD));}
-				  // if(energyU>0 && (energyU/(energyU+energyD)>0.90)) {barrelFrontStripP[sideU-1][stripU-1][0]->Fill(energy);} // SHOULD THIS BE COMMENTED OUT?
-				}
-			}
+				  if(energyD>0 && (energyD/(energyU+energyD)>0.60))
+				    barrelFrontStripP[sideU-1][stripU-1][0]->Fill((energyU-energyD)/(energyU+energyD));
+				  if(energyU>0 && (energyU/(energyU+energyD)>0.60))
+				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill((energyU-energyD)/(energyU+energyD)); 
+			 }
+		  }
 	  }
 	}// end loop on tree
   nptDataFile->Close();
@@ -217,10 +223,12 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
   output->cd();
   for (int iSide =0; iSide<8 ; iSide++) {
   	for(int iStrip=0 ; iStrip<4 ; iStrip++){
-  		nameTitle = barrelFrontStripDU[iSide][iStrip]->GetTitle();
-  		if (barrelFrontStripDU[iSide][iStrip]->GetEntries()>0){
+  		nameTitle = barrelFrontStripUD[iSide][iStrip]->GetTitle();
+  		if (barrelFrontStripUD[iSide][iStrip]->GetEntries()>0){
   			barrelFrontStripPE[iSide][iStrip]->Write();
-        barrelFrontStripDU[iSide][iStrip]->Write();
+            barrelFrontStripUD[iSide][iStrip]->Write();
+            barrelFrontStripP[iSide][iStrip][0]->Write();
+            barrelFrontStripP[iSide][iStrip][1]->Write();
   		}
   	}// end of loop
   }
@@ -230,10 +238,10 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString outputRootFil
 }
 
 /*****************************************************************************************************************/
-void SliceHistogram(TH2D* h2, int binstep, float ylow, float yup){
+void SliceHistogram(TH2D* h2, int binstep, float ylow, float yup, float xmin, float xmax){
 
 	TAxis* Yaxis = h2->GetYaxis();
-	h2->GetXaxis()->SetRangeUser(750,1550);
+	h2->GetXaxis()->SetRangeUser(xmin,xmax);
 	int firstbin = Yaxis->FindBin(ylow); // determining upper and lower y bins
 	int lastbin = Yaxis->FindBin(yup);
 	int bin = firstbin;
@@ -272,7 +280,7 @@ vector <double> FitOneSlice(TH1D* Slice){
 		PeakPositions.push_back(peaks[j]);
 	}
 	sort(PeakPositions.begin(), PeakPositions.end());
-  if (NumPeaksFound==3 && Slice->Integral()>500 ){
+  if (NumPeaksFound==3 && Slice->Integral()>400 ){
 		TF1* fittingfunc = new TF1("fittingfunc", "gaus(0)+gaus(3)+gaus(6)", PeakPositions.front()-20, PeakPositions.back()+20);
 		fittingfunc->SetParameter(1,PeakPositions[0]);
 		fittingfunc->SetParameter(4,PeakPositions[1]);
@@ -540,7 +548,7 @@ double fDownstream_E(double energy, unsigned short side, unsigned short strip){
   name+= NPL::itoa( side ) ;
   name+= "_DOWNSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_E"; 
+  name+= "_E";
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
