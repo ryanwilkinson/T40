@@ -14,4 +14,8 @@ In the new makeMatchsticks_v2.sh script, this has been expanded to:
 
 As such, this new script will take a lot longer to run, but should provide much better matchsticks data.
 
+Thursday 2nd March 2017
 
+<< Changes from "makeMatchsticks_v2.sh" (version 2) to "makeMatchsticks_v3.sh" (version 3) >>
+
+Removed the matchsticks at 0.01V and 0.05V and all those at 0.X5V (X=1-9), to avoid too many matchsticks cluttered up in a relatively small region of channels. Added matchsticks at 0.03V and 0.07V instead.
