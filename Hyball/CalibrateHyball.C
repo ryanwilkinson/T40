@@ -24,7 +24,7 @@ double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 
 
 
-void CalibrateHyball(TString pathToFile="../../TapeData/Root/EXPT4/R3_0.root",
+void CalibrateHyball(TString pathToFile/*to avoid conflict input the file name in the terminal*/,
 					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
 					 TString plotsFileName="./inspectHyballHisto.root"){
 

@@ -53,7 +53,7 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
-void CalibrateBarrelPosition(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root", 
+void CalibrateBarrelPosition(TString tripleAlphaFileName/*to avoid conflict input the file name in the terminal*/, 
 					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
 					 TString plotsFileName="./inspectBarrelHisto3.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
