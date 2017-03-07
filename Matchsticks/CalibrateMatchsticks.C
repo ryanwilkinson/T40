@@ -23,7 +23,7 @@
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
-void CalibrateMatchsticks(TString pathToFile="../../Tiara/TapeData/Root/EXPT5/ER411_0.root"){
+void CalibrateMatchsticks(TString pathToFile="../../TapeData/Root/EXPT5/ER411_0.root"){
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -433,7 +433,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         graph->GetYaxis()->CenterTitle(); 
         graph->SetMarkerStyle(20); 
         //TF1 *polfit = new TF1("polfit","pol2(0)",100,3950);   
-        TF1 *polfit = new TF1("polfit","pol2(0)",0,1300);   
+        TF1 *polfit = new TF1("polfit","pol2(0)",0,3950);   
         graph->Fit(polfit,"QR");
         gStyle -> SetOptStat(0);
         gStyle -> SetOptFit(111);
