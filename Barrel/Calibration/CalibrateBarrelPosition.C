@@ -47,15 +47,18 @@ const double striphalflength = 48.4;
 //global variables
 
 //functions
+TH1F* FindHistogram(TString histname, TString filename); // finds a histogram "histname" in file "filename"
 TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchsticks, TString outputRootFileName); // uses the specified "alphaCalibrationFile" to make a file with histograms used to extract calibration coefficients
 double fUpstream_E(double energy, unsigned short wedge, unsigned short ring); //Changes energy into linearized energy using matchstick data
 double fDownstream_E(double energy, unsigned short wedge, unsigned short sector); //Changes energy into linearized energy using matchstick data
-
+double ErfFunction(Double_t *x, Double_t *par); // amn Erf function to fit the positions
+TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax); 
+void GetFitWindow(TH1F* hist, int du, double &rmin, double &rmax); // in progress
 
 // MAIN
-void CalibrateBarrelPosition(TString tripleAlphaFileName="../../../TapeData/Root/POST/ER1_1.root", 
+void CalibrateBarrelPosition(TString tripleAlphaFileName/*to avoid conflict input the file name in the terminal*/, 
 					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
-					 TString plotsFileName="./inspectBarrelHisto3.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+					 TString plotsFileName="./inspectBarrelHisto2.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
 
   //local variable
   ofstream outputFile;
@@ -73,17 +76,49 @@ void CalibrateBarrelPosition(TString tripleAlphaFileName="../../../TapeData/Root
   else {
 	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
 	cout << " The file " << plotsFileName << " is found in the present directory, it will be used for position calibration " << endl;
-	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;			
 	fileToCalibrate = new TFile(plotsFileName,"UPDATE");
   }
   fileToCalibrate->cd();
 
   // Calibration of position goes here 
-   /*
+	for (int detector=1; detector<=8; detector++){
+		TString name = Form("Barrel%d",detector);
+		can[detector-1] = new TCanvas(name,name,900,900);
+		can[detector-1]->Divide(4,4); // splits each canvas into 8; 2 for each strip in a detector
+		for (int strip=1; strip<=4; strip++){
+			for (int du=0; du<2; du++){
+				TString hname = Form("TIARABARREL_B%d_DOWNSTREAM%d_P",detector,strip); 
+				if (du == 1) hname = Form("TIARABARREL_B%d_UPSTREAM%d_P",detector,strip);
+				
+         //ClearGlobalParameters(); // clear parameters
+				TH1F* currentHist = (TH1F*) fileToCalibrate->FindObjectAny(hname.Data());
+				can[detector-1]->cd(2*(strip-1)+(du+1));
 
-
-
-  */
+				if (currentHist && currentHist->Integral()>2000) {
+					cout << " Working on " << hname << endl;
+          // Find the good window
+					double rmin=0.5;
+          double rmax=0.8;
+		      //FitWindow(TH1F* hist, du, rmin, rmax); // this will give rmin and rmax
+		      TF1* fitfunc = FitPosition(currentHist, du, rmin, rmax);
+          //Draw for inspection
+          currentHist->Draw();
+		      //write in output file 
+				  if (du == 0)
+							outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_POS " << 0 << " " << fitfunc->GetParameter(1) << endl;
+					else
+							outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_POS " << 0 << " " << fitfunc->GetParameter(1) << endl;
+				}
+				else { // for when there is no histogram currentHist or if currentHist is empty - nptool tokens with default calibration parameters
+				  if (du == 0)
+							outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_POS " << 0 << " " << 0 << endl;
+					else
+							outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_POS " << 0 << " " << 0 << endl;
+				}
+			}
+		}
+	}
 
   outputFile.close();
   cout << "...done!" << endl;
@@ -214,5 +249,59 @@ double fDownstream_E(double energy, unsigned short side, unsigned short strip){
   name+= "_E"; 
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
+}
+
+
+double ErfFunction(Double_t *x, Double_t *par) {
+  // Par[0]: amplitude measured from the y = 0, amp is positive for "S" shape 
+  // Par[1]: inflexion point position, (what we are looking for) 
+  // Par[2]: steepness of the curve, (the smaller the steeper) 
+
+   double xx = x[0];
+   double f = (par[0]/2)*TMath::Erf((xx-par[1])/par[2]) + TMath::Abs(par[0]/2);
+   return f;
+}
+
+TH1F* FindHistogram(TString HistoName, TString filename){
+
+  TFile* file = new TFile(filename.Data());
+  TH1F* currentHist = (TH1F*) file->FindObjectAny(HistoName.Data());
+
+  return ((TH1F*) currentHist);
+}
+
+
+TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
+//for du = {DownStream,UpStream} = {0,1}  => sign={+,-}
+  
+  hist->Rebin();
+
+  //Set sign for Upstream by default, rmin, rmax are the same
+  double sign = -1 ;
+  // if downstream change sign, swap and rmin, rmax
+  if (du==0){ 
+      double rmincopy=rmin;
+      sign = +1 ;
+      rmin = -rmax;
+      rmax = -rmincopy;
+   }
+
+   double amp = sign*50 ; 
+   double pos = -sign*0.66 ; 
+   double steepness = 0.03 ; 
+
+    TF1* fitFunction = new TF1("fitFunction", ErfFunction ,rmin, rmax, 3); // 3 in nb of param
+		fitFunction->SetParameters(amp,pos,steepness);
+
+		fitFunction->SetParLimits(0,0,amp*2);
+		fitFunction->SetParLimits(1,pos-0.1,pos+0.1);
+		fitFunction->SetParLimits(2,0.005,steepness*3);
+		//fitFunction->FixParameter(2,steepness);
+
+		hist->Fit(fitFunction,"RM");
+    hist->SetLineColor(8);
+    TF1* fit = hist->GetFunction(fitFunction->GetName());
+
+ return fit;
 }
 

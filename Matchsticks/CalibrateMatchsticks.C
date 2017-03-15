@@ -27,8 +27,13 @@
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
+<<<<<<< HEAD
 void CalibrateMatchsticks(TString pathToFile="../NewMatchstickData/ER10_0-nptool.root"){
 //./MatchstickData/ER411_0-nptool.root"){
+=======
+
+void CalibrateMatchsticks(TString pathToFile/*to avoid conflict input the file name in the terminal*/){ 
+>>>>>>> c6096de24e9dbb4ea0f52817382d45448b6c5407
 
 //initiate output variables
 vector < vector<double> > coeff; 
@@ -445,6 +450,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         graph->GetXaxis()->CenterTitle();
         graph->GetYaxis()->SetTitle("Pulser Voltage (mV)");
         graph->GetYaxis()->CenterTitle(); 
+        graph->SetMarkerStyle(20); 
 
         //Ignore anything higher than 3980 from fit to avoid warping
         int peakfitsize = PeakFitPosition.size() - 1;
@@ -455,6 +461,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         else{fitend = PeakFitPosition[peakfitsize];}
 
         TF1 *polfit = new TF1("polfit","pol2(0)",fitbegin,fitend);   
+
         graph->Fit(polfit,"QR");
         gStyle -> SetOptStat(0);
         gStyle -> SetOptFit(111);
