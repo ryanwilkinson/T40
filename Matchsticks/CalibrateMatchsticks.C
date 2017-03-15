@@ -27,7 +27,7 @@
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
-void CalibrateMatchsticks(TString pathToFile="./R1_0-nptool.root"){
+void CalibrateMatchsticks(TString pathToFile="../NewMatchstickData/ER10_0-nptool.root"){
 //./MatchstickData/ER411_0-nptool.root"){
 
 //initiate output variables
@@ -53,9 +53,9 @@ TString nameTitle; // same as NPTool calibration token
 for (int iSide =0; iSide<8 ; iSide++) {
 	for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
-		barrelFrontStrip[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,900,0,4050);
+		barrelFrontStrip[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,4050,0,4050);
 		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
-		barrelFrontStrip[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,900,0,4050);
+		barrelFrontStrip[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,4050,0,4050);
 		}
 }
 
@@ -91,14 +91,15 @@ TTree* tree = (TTree*) nptDataFile->Get("T40Tree");
 	//Loop on tree and fill the histograms
 	int entries = tree->GetEntries();
 	//entries = 100000;
-	cout << " INFO: Number of entries in Barrel tree: " << entries << endl;  
-	for(int i = 0 ; i < entries; i++) { 
-
+	for(unsigned int i = 0 ; i < entries; i++) { 
 	  if (i%(entries/100)) printf("\r treated %2.f percent of Barrel entries",100.0*i/entries);
+
+
 	  tree->GetEntry(i);
+
 	  unsigned int sizeUE = barrelData->GetFrontUpstreamEMult();
 	  unsigned int sizeDE = barrelData->GetFrontDownstreamEMult();
-      
+
 	  // fill upstream 
 	  for(unsigned int i = 0 ; i < sizeUE ; ++i){
 		unsigned short side = barrelData->GetFrontUpstreamEDetectorNbr( i );
@@ -370,7 +371,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
 
    //find peaks within the spectra using search from TSpectrum.h
    TSpectrum *matchstick_spectra = new TSpectrum(20);
-   int PeakNbr = matchstick_spectra->Search(histo, 2,"", 0.05);
+   int PeakNbr = matchstick_spectra->Search(histo, 3,"", 0.001);
    //printf("Found %d candidate peaks to fit\n",PeakNbr);
 
    if(PeakNbr>7){
@@ -392,7 +393,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         
         //Fit all the peaks in the spectra with gaussian
         for(int j=0 ; j<PeakNbr; j++){
-            TF1* gausfit = new TF1("gausfit", "gaus(0)", PeakPosition[j]-25, PeakPosition[j]+25);
+            TF1* gausfit = new TF1("gausfit", "gaus(0)", PeakPosition[j]-30, PeakPosition[j]+30);
             histo->Fit(gausfit,"QR+");
             PeakFitPosition.push_back(gausfit->GetParameter(1));            
         }
@@ -406,7 +407,7 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         //vector for the pulser voltages in mV, may need adjusting depending on the
         //physical input from the pulser
         vector<double> MatchstickVoltage;
-        MatchstickVoltage.push_back(0100);
+        MatchstickVoltage.push_back(100);
         MatchstickVoltage.push_back(200);
         MatchstickVoltage.push_back(300);
         MatchstickVoltage.push_back(400);
@@ -415,16 +416,23 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         MatchstickVoltage.push_back(700);
         MatchstickVoltage.push_back(800);
         MatchstickVoltage.push_back(900);
-        MatchstickVoltage.push_back(1000.0);
-        MatchstickVoltage.push_back(2000.0);
-        MatchstickVoltage.push_back(3000.0);
-        MatchstickVoltage.push_back(4000.0);
-        MatchstickVoltage.push_back(5000.0);
-        MatchstickVoltage.push_back(6000.0);
-        MatchstickVoltage.push_back(7000.0);
-        MatchstickVoltage.push_back(8000.0);
-        MatchstickVoltage.push_back(9000.0);
-        MatchstickVoltage.push_back(10000.0);
+        MatchstickVoltage.push_back(1000);
+        MatchstickVoltage.push_back(1500);
+        MatchstickVoltage.push_back(2000);
+        MatchstickVoltage.push_back(2500);
+        MatchstickVoltage.push_back(3000);
+        MatchstickVoltage.push_back(3500);
+        MatchstickVoltage.push_back(4000);
+        MatchstickVoltage.push_back(4500);
+        MatchstickVoltage.push_back(5000);
+        MatchstickVoltage.push_back(5500);
+        MatchstickVoltage.push_back(6000);
+        MatchstickVoltage.push_back(6500);
+        MatchstickVoltage.push_back(7000);
+        MatchstickVoltage.push_back(7500);
+        MatchstickVoltage.push_back(8000);
+        MatchstickVoltage.push_back(9000);
+        MatchstickVoltage.push_back(10000);
 
         //remove any pulser voltage not associated to a peak in the spectra
         int MatchstickEndVoltage = PeakFitPosition.size();
