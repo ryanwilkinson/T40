@@ -2,26 +2,31 @@
 #include <iostream>
 #include <fstream>
 
+using namespace std;
+
 //Root
 #include "TFile.h"
 #include "TTree.h"
 #include "TH1F.h"
+#include "TSystem.h"
 
 //NPTool
 #include "TTiaraHyballData.h"
-#include "TTiaraHyballPhysics.h"
+#include "NPVDetector.h" // NPL::itoa fucntion
 #include "NPEnergyLoss.h"
 #include "NPCalibrationSource.h"
 #include "NPSiliconCalibrator.h"
 #include "NPCalibrationManager.h"
 
+//functions
+double fRing_E(double energy, unsigned short wedge, unsigned short ring);
+double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 
 
 
-void CalibrateHyball(TString pathToFile/*to avoid conflict input the file name in the terminal*/,
+void CalibrateHyball(TString pathToFile "../NewAlphaData_2017/ER1_1-nptool.root",
 					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
 					 TString plotsFileName="./inspectHyballHisto.root"){
-
 
 //define dead layer in micrometer for SimpleCalibration method, 
 // in this case the return "value" is the distance from the pedestal
@@ -37,16 +42,12 @@ vector < TString > badchannels; //channels with bad data
 
 //Nptool data 
 TTiaraHyballData* hyballData = new TTiaraHyballData ;
-
-//functions
-double fRing_E(double energy, unsigned short wedge, unsigned short ring);
-double fSector_E(double energy, unsigned short wedge, unsigned short sector);
+TFile* fileToCalibrate;
 
 //spectra values
 int lowerbound, upperbound, nobins;
-
-    lowerbound = 500;
-    upperbound = 1500;
+    lowerbound = 500; //1200
+    upperbound = 1500; //2500
     nobins = (upperbound - lowerbound)/2;
 
 //initiate list of Histograms
@@ -64,7 +65,6 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
-
 TH1F* hyballEnergyOffsetRing; // after Linearization, this should peak at zero
 TH1F* hyballEnergyOffsetSector; // after Linearization, this should peak at zero
 nameTitle =Form("TIARAHYBALL_Offset_Ring");
@@ -76,19 +76,16 @@ hyballEnergyOffsetSector->GetXaxis()->SetTitle("MeV");
 
 //initiate matchstick calibrator
   CalibrationManager* Cal  = CalibrationManager::getInstance();
-    Cal->CalibrationManager::AddFile("/media/sh00319/DellPortableHardDrive/25Mg_dp/CalibrationFiles/nptool/Matchsticks_Calib_w_linear_post_xmas.txt");
-
+  Cal->AddFile(pathToMatchsticks.Data());
   for(int i = 0 ; i < 6 ; ++i){
     for( int j = 0 ; j < 24 ; ++j){
       Cal->AddParameter("TIARAHYBALL", "D"+NPL::itoa(i+1)+"_STRIP_RING"+NPL::itoa(j+1)+"_MATCHSTICK","TIARAHYBALL_D"+NPL::itoa(i+1)+"_STRIP_RING"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
     }
-
     for( int j = 0 ; j < 48 ; ++j){
       Cal->AddParameter("TIARAHYBALL", "D"+NPL::itoa(i+1)+"_STRIP_SECTOR"+NPL::itoa(j+1)+"_MATCHSTICK","TIARAHYBALL_D"+NPL::itoa(i+1)+"_STRIP_SECTOR"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
     }
   }
-
-    Cal->LoadParameterFromFile();
+  Cal->LoadParameterFromFile();
 
 //initiate the source, calibrator etc...
 NPL::CalibrationSource* alphaSource = new NPL::CalibrationSource(); 
@@ -118,7 +115,6 @@ NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // n
 	//Loop on tree and fill the histograms
 	int entries = tree->GetEntries();
 	//entries = 1000000;
-
 	cout << " INFO: Number of entries in tree: " << entries << endl;  
 	for(int i = 0 ; i < entries; i++) {
 	  if (i%(entries/100)) printf("\r treated %2.f percent ",100.0*i/entries);
@@ -129,53 +125,54 @@ NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // n
 		unsigned short ring  = hyballData->GetRingEStripNbr( i );
 		double energy = hyballData->GetRingEEnergy( i );
 		if( wedge>0 && ring>0 && energy>lowerbound && energy<upperbound){
-        double linenergy = fRing_E(energy,wedge,ring);
-
+	    	double linenergy = fRing_E(energy,wedge,ring);
 			hyballRing[wedge-1][ring-1]->Fill(linenergy);
-		    //cout << wedge << " " <<  ring << " " << energy << " " << linenergy <<  endl ; 
-
-			}
-	  	}
+			//cout << wedge << " " <<  ring << " " << energy << " " << linenergy <<  endl ; 
+		}
+	  }
 	  unsigned int sizeSectorE = hyballData->GetSectorEMult();
 	  for(unsigned int i = 0 ; i < sizeSectorE ; ++i){
 		unsigned short wedge  = hyballData->GetSectorEDetectorNbr( i );
 		unsigned short sector = hyballData->GetSectorEStripNbr( i );
 		double energy = hyballData->GetSectorEEnergy( i );
 		if(wedge>0 && sector>0 && energy>lowerbound && energy<upperbound ){
-        double linenergy = fSector_E(energy,wedge,sector);
-
+	    	double linenergy = fSector_E(energy,wedge,sector);
 			hyballSector[wedge-1][sector-1]->Fill(linenergy);
 			//cout << wedge << " " <<  sector << " " << energy << endl ; 
-			}
-	  	}
+		}
+	  }
 	}// end loop on tree
+	nptDataFile->Close();
 
-nptDataFile->Close();
-
-TFile output("inspectHisto.root","RECREATE");
-output.cd();
-
-for (int iWedge =0; iWedge<6 ; iWedge++) {
-	for(int iRing=0 ; iRing<16 ; iRing++){
-		nameTitle =Form("TIARAHYBALL_D%d_STRIP_RING%d_E",iWedge+1,iRing+1);
-		hyballRing[iWedge][iRing]->Write();
+	//Write all the data in the file 
+    fileToCalibrate = new TFile(plotsFileName,"RECREATE");
+	fileToCalibrate->cd();
+	for (int iWedge =0; iWedge<6 ; iWedge++) {
+		for(int iRing=0 ; iRing<16 ; iRing++)
+			hyballRing[iWedge][iRing]->Write();
+		for(int iSector=0 ; iSector<8 ; iSector++)
+			hyballSector[iWedge][iSector]->Write();
 		}
-	for(int iSector=0 ; iSector<8 ; iSector++){
-		nameTitle =Form("TIARAHYBALL_D%d_STRIP_SECTOR%d_E",iWedge+1,iSector+1);
-		hyballSector[iWedge][iSector]->Write();
+	fileToCalibrate->Write();
+  }
+	else {
+		cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+		cout << " The file " << plotsFileName << " is found in the present directory, delete or change name to create a new calibration " << endl;
+		cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+		fileToCalibrate = new TFile(plotsFileName,"UPDATE");
+		//return;
 		}
-	}
+
+	fileToCalibrate->cd();
 
 //Pass Histograms to the calibrator and collect the callibration coeff
 vector <double> coeffset; //simple set of coeffecients
 TH1F* currentHist;
 
 for (int iWedge =0; iWedge<6 ; iWedge++) {
-	
 //rings
 	for(int iRing=0 ; iRing<16 ; iRing++){
 		coeffset.clear();
-
         currentHist = NULL;
 		nameTitle =Form("TIARAHYBALL_D%d_STRIP_RING%d_E",iWedge+1,iRing+1);
 		currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data());
@@ -218,7 +215,6 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 	//sectors
 	for(int iSector=0 ; iSector<8 ; iSector++){
 		coeffset.clear();
-
         currentHist = NULL;
 		nameTitle =Form("TIARAHYBALL_D%d_STRIP_SECTOR%d_E",iWedge+1,iSector+1);
 		TH1F* currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data());
@@ -258,21 +254,24 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
+hyballEnergyOffsetRing->Write("",TObject::kOverwrite);
+hyballEnergyOffsetSector->Write("",TObject::kOverwrite);
+
     //Print to screen any channels with bad spectra
     if(badchannels.size() > 0){
         int badch = badchannels.size();
-        std::cout << "\nWARNING: THREE PEAKS NOT FOUND IN TRIPLE-ALPHA SPECTRUM FOR CHANNELS: " << std::endl;
-        for(int i ; i < badch ; i++){
-            std::cout << badchannels[i] << std::endl;
+        cout << "\nWARNING: THREE PEAKS NOT FOUND IN TRIPLE-ALPHA SPECTRUM FOR CHANNELS: " << endl;
+        for(int i=0 ; i < badch ; i++){
+            cout << badchannels[i] << endl;
         }
-        std::cout << "SETTING GAIN AND OFFSET TO ZERO - BAD SPECTRUM.\nPLEASE CHECK THESE CHANNELS TO VERIFY THERE ARE NOT THREE PEAKS IN THIS SPECTRUM." << std::endl;
+        cout << "SETTING GAIN AND OFFSET TO ZERO - BAD SPECTRUM.\nPLEASE CHECK THESE CHANNELS TO VERIFY THERE ARE NOT THREE PEAKS IN THIS SPECTRUM." << endl;
     }
 
-output.Close();
+fileToCalibrate->Close();
 
 //write in a text file 
 	ofstream myfile;
-	myfile.open ("Hyball_Calib_w_Match.txt");
+	myfile.open ("Hyball_Calib.txt");
 	for(unsigned int i = 0 ; i < coeff.size() ; i++){
 		myfile << nptToken.at(i)<<" " ;
 		for(unsigned int j = 0 ; j < coeff.at(i).size() ; j++)
