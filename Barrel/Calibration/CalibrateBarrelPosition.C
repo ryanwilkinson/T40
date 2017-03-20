@@ -57,8 +57,11 @@ void GetFitWindow(TH1F* hist, int du, double &rmin, double &rmax); // in progres
 
 // MAIN
 void CalibrateBarrelPosition(TString tripleAlphaFileName/*to avoid conflict input the file name in the terminal*/, 
-					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
-					 TString plotsFileName="./inspectBarrelHisto2.root"){ //tripleAlphaFileName = run file with triple alpha spectra for the Barrel in it
+					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){
+					 
+  //generate the outputFileName
+  TString plotsFileName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
+  plotsFileName = "inspect_"+plotsFileName;
 
   //local variable
   ofstream outputFile;

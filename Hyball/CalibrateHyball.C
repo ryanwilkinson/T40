@@ -25,8 +25,11 @@ double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 
 
 void CalibrateHyball(TString pathToFile/*to avoid conflict input the file name in the terminal*/,
-					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt",
-					 TString plotsFileName="./inspectHyballHisto.root"){
+					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){
+
+//generate the outputFileName
+TString plotsFileName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
+plotsFileName = "inspect_"+plotsFileName;
 
 //define dead layer in micrometer for SimpleCalibration method, 
 // in this case the return "value" is the distance from the pedestal

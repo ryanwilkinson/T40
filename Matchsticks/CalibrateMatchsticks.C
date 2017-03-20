@@ -158,7 +158,9 @@ TTree* tree = (TTree*) nptDataFile->Get("T40Tree");
 
 nptDataFile->Close();
 
-TFile output("inspectHisto.root","RECREATE");
+TString OutputfName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
+OutputfName = "inspect_"+OutputfName;
+TFile output(OutputfName,"RECREATE");
 output.cd();
 
 vector <double> coeffset; //simple set of coeffecients
