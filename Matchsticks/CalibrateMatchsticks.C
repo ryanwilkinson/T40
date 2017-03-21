@@ -10,6 +10,7 @@
 #include <cmath>
 #include <math.h>
 #include <algorithm>
+using namespace std;
 
 //Root
 #include "TFile.h"
@@ -22,12 +23,15 @@
 #include "TGraph.h"
 #include "TStyle.h"
 #include "TROOT.h"
-
+#include "TSystem.h"
 //NPTool
 #include "TTiaraHyballData.h"
 #include "TTiaraBarrelData.h"
 
+//functions
+double MatchstickCalibration(TH1* histo, vector<double>& coeff);
 
+//Main 
 void CalibrateMatchsticks(TString pathToFile/*to avoid conflict input the file name in the terminal*/){ 
 
 //initiate output variables
@@ -38,10 +42,6 @@ vector < TString > badchannels; //channels with bad data
 //Nptool data 
 TTiaraHyballData* hyballData = new TTiaraHyballData ;
 TTiaraBarrelData* barrelData = new TTiaraBarrelData ;
-
-//functions
-double MatchstickCalibration(TH1* histo, vector<double>& coeff);
-
 
 //initiate list of Histograms
 TH1F* barrelFrontStrip[8][4][2]; // 8 sides of the barrel, 4 strips in one side, up and down  
@@ -71,161 +71,195 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
-//Open TFile
-TFile* nptDataFile = new TFile(pathToFile.Data(),"READ");
- if (nptDataFile == 0) {
-      // if we cannot open the file, print an error message and return immediatly
-      printf("Error: cannot open this file: %s \n",pathToFile.Data());
-      return;
-   }
-nptDataFile->ls();
-
-//Load Tree
-TTree* tree = (TTree*) nptDataFile->Get("T40Tree");
-
-//Set Barrel Branch
-  tree->SetBranchStatus( "TiaraBarrel" , true )               ;
-  tree->SetBranchStatus( "fTiaraBarrel_*" , true )               ;
-  tree->SetBranchAddress( "TiaraBarrel" , &barrelData )      ;
-
-	//Loop on tree and fill the histograms
-	int entries = tree->GetEntries();
-	//entries = 100000;
-	cout << " INFO: Number of entries in Barrel tree: " << entries << endl;  
-	for(int i = 0 ; i < entries; i++) { 
-
-	  if (i%(entries/100)) printf("\r treated %2.f percent of Barrel entries",100.0*i/entries);
-	  tree->GetEntry(i);
-	  unsigned int sizeUE = barrelData->GetFrontUpstreamEMult();
-	  unsigned int sizeDE = barrelData->GetFrontDownstreamEMult();
-      
-	  // fill upstream 
-	  for(unsigned int i = 0 ; i < sizeUE ; ++i){
-		unsigned short side = barrelData->GetFrontUpstreamEDetectorNbr( i );
-		unsigned short strip  = barrelData->GetFrontUpstreamEStripNbr( i );
-		double energy = barrelData->GetFrontUpstreamEEnergy( i );
-		if( side>0 && strip>0 && energy>0 && energy<4050 ){
-			barrelFrontStrip[side-1][strip-1][0]->Fill(energy);
-		    //cout << side << " " <<  strip << " " << energy << endl ; 
-			}
-	  	}
-      
-      // fill downstream
-	  for(unsigned int i = 0 ; i < sizeDE ; ++i){
-		unsigned short side = barrelData->GetFrontDownstreamEDetectorNbr( i );
-		unsigned short strip  = barrelData->GetFrontDownstreamEStripNbr( i );
-		double energy = barrelData->GetFrontDownstreamEEnergy( i );
-		if( side>0 && strip>0 && energy>0 && energy<4050 ){
-			barrelFrontStrip[side-1][strip-1][1]->Fill(energy);
-		    //cout << side << " " <<  strip << " " << energy << endl ; 
-			}
-		}
-    }
-
-//Set Hyball Branch
-  tree->SetBranchStatus( "TiaraHyball" , true )               ;
-  tree->SetBranchStatus( "fTiaraHyball_*" , true )               ;
-  tree->SetBranchAddress( "TiaraHyball" , &hyballData )      ;
-
-	for(int i = 0 ; i < entries; i++) {
-	  if (i%(entries/100)) printf("\r treated %2.f percent of Hyball entries",100.0*i/entries);
-	  tree->GetEntry(i);
-        //fill ring information
-	  unsigned int sizeRingE = hyballData->GetRingEMult();
-	  for(unsigned int i = 0 ; i < sizeRingE ; ++i){
-		unsigned short wedge = hyballData->GetRingEDetectorNbr( i );
-		unsigned short ring  = hyballData->GetRingEStripNbr( i );
-		double energy = hyballData->GetRingEEnergy( i );
-		if( wedge>0 && ring>0 && energy>0 && energy<4050 ){
-			hyballRing[wedge-1][ring-1]->Fill(energy);
-		    //cout << wedge << " " <<  ring << " " << energy << endl ; 
-			}
-	  	}
-        
-        //fill sector information
-	  unsigned int sizeSectorE = hyballData->GetSectorEMult();
-	  for(unsigned int i = 0 ; i < sizeSectorE ; ++i){
-		unsigned short wedge  = hyballData->GetSectorEDetectorNbr( i );
-		unsigned short sector = hyballData->GetSectorEStripNbr( i );
-		double energy = hyballData->GetSectorEEnergy( i );
-		if(wedge>0 && sector>0 && energy>0 && energy<4050 ){
-			hyballSector[wedge-1][sector-1]->Fill(energy);
-			//cout << wedge << " " <<  sector << " " << energy << endl ; 
-			}
-	  	}
-	}// end loop on tree
-
-
-nptDataFile->Close();
 
 TString OutputfName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
 OutputfName = "inspect_"+OutputfName;
-TFile output(OutputfName,"RECREATE");
-output.cd();
+
+  TFile* fileToCalibrate;
+  if(gSystem->AccessPathName(OutputfName)){ //checks if the file exist already, condition is "true" if not
+    cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+    cout << " No file to calibrate found - creating one now using " << pathToFile << endl;
+    cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+
+    //Open TFile
+    TFile* nptDataFile = new TFile(pathToFile.Data(),"READ");
+    if (nptDataFile == 0) {
+      // if we cannot open the file, print an error message and return immediatly
+      printf("Error: cannot open this file: %s \n",pathToFile.Data());
+      return;
+      }
+    nptDataFile->ls();
+
+    //Load Tree
+    TTree* tree = (TTree*) nptDataFile->Get("T40Tree");
+
+    //Set Barrel Branch
+    tree->SetBranchStatus( "TiaraBarrel" , true )         ;
+    tree->SetBranchStatus( "fTiaraBarrel_*" , true )      ;
+    tree->SetBranchAddress( "TiaraBarrel" , &barrelData ) ;
+
+    //Loop on tree and fill the histograms
+    int entries = tree->GetEntries();
+    //entries = 100000;
+    cout << " INFO: Number of entries in Barrel tree: " << entries << endl;  
+    for(int i = 0 ; i < entries; i++) { 
+      if (i%(entries/100)) printf("\r treated %2.f percent of Barrel entries",100.0*i/entries);
+      tree->GetEntry(i);
+      unsigned int sizeUE = barrelData->GetFrontUpstreamEMult();
+      unsigned int sizeDE = barrelData->GetFrontDownstreamEMult();
+
+      // fill upstream 
+      for(unsigned int i = 0 ; i < sizeUE ; ++i){
+        unsigned short side = barrelData->GetFrontUpstreamEDetectorNbr( i );
+        unsigned short strip  = barrelData->GetFrontUpstreamEStripNbr( i );
+        double energy = barrelData->GetFrontUpstreamEEnergy( i );
+        if( side>0 && strip>0 && energy>0 && energy<4050 ){
+          barrelFrontStrip[side-1][strip-1][0]->Fill(energy);
+          //cout << side << " " <<  strip << " " << energy << endl ; 
+          }
+        }
+
+      // fill downstream
+      for(unsigned int i = 0 ; i < sizeDE ; ++i){
+        unsigned short side = barrelData->GetFrontDownstreamEDetectorNbr( i );
+        unsigned short strip  = barrelData->GetFrontDownstreamEStripNbr( i );
+        double energy = barrelData->GetFrontDownstreamEEnergy( i );
+        if( side>0 && strip>0 && energy>0 && energy<4050 ){
+          barrelFrontStrip[side-1][strip-1][1]->Fill(energy);
+          //cout << side << " " <<  strip << " " << energy << endl ; 
+         }
+      }
+     }
+
+      //Set Hyball Branch
+      tree->SetBranchStatus( "TiaraHyball" , true )               ;
+      tree->SetBranchStatus( "fTiaraHyball_*" , true )               ;
+      tree->SetBranchAddress( "TiaraHyball" , &hyballData )      ;
+
+      for(int i = 0 ; i < entries; i++) {
+        if (i%(entries/100)) printf("\r treated %2.f percent of Hyball entries",100.0*i/entries);
+        tree->GetEntry(i);
+        //fill ring information
+        unsigned int sizeRingE = hyballData->GetRingEMult();
+        for(unsigned int i = 0 ; i < sizeRingE ; ++i){
+          unsigned short wedge = hyballData->GetRingEDetectorNbr( i );
+          unsigned short ring  = hyballData->GetRingEStripNbr( i );
+          double energy = hyballData->GetRingEEnergy( i );
+          if( wedge>0 && ring>0 && energy>0 && energy<4050 ){
+            hyballRing[wedge-1][ring-1]->Fill(energy);
+            //cout << wedge << " " <<  ring << " " << energy << endl ; 
+          }
+        }
+      //fill sector information
+      unsigned int sizeSectorE = hyballData->GetSectorEMult();
+      for(unsigned int i = 0 ; i < sizeSectorE ; ++i){
+        unsigned short wedge  = hyballData->GetSectorEDetectorNbr( i );
+        unsigned short sector = hyballData->GetSectorEStripNbr( i );
+        double energy = hyballData->GetSectorEEnergy( i );
+        if(wedge>0 && sector>0 && energy>0 && energy<4050 ){
+          hyballSector[wedge-1][sector-1]->Fill(energy);
+          //cout << wedge << " " <<  sector << " " << energy << endl ; 
+        }
+      }
+    }// end loop on tree
+    nptDataFile->Close();
+    
+    fileToCalibrate = new TFile(OutputfName,"RECREATE");
+    //write all histograms
+    for (int iSide =0; iSide<8 ; iSide++) {
+	    for(int iStrip=0 ; iStrip<4 ; iStrip++){
+		    barrelFrontStrip[iSide][iStrip][0]->Write();
+		    barrelFrontStrip[iSide][iStrip][1]->Write();
+		    }
+    }
+    for (int iWedge =0; iWedge<6 ; iWedge++) {
+	    for(int iRing=0 ; iRing<16 ; iRing++){
+		    hyballRing[iWedge][iRing]->Write();
+		    }
+	    for(int iSector=0 ; iSector<8 ; iSector++){
+		    hyballSector[iWedge][iSector]->Write();
+		    }
+	    }
+    fileToCalibrate->Write();
+  }
+  else {
+	  cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+	  cout << " The file " << OutputfName << " is found in the present directory, it will be used for calibration " << endl;
+	  cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
+	  fileToCalibrate = new TFile(OutputfName,"UPDATE");
+  }
+
+fileToCalibrate->cd();
 
 vector <double> coeffset; //simple set of coeffecients
+TH1F* currentHist;
 
 for (int iSide =0; iSide<8 ; iSide++) {
 	for(int iStrip=0 ; iStrip<4 ; iStrip++){
-        for(int iUD=0 ; iUD<2 ; iUD++){
-		    coeffset.clear();
-		    nameTitle = barrelFrontStrip[iSide][iStrip][iUD]->GetTitle();
-		    //std::cout << "Number of entries (must be >300) is: " << barrelFrontStrip[iSide][iStrip][iUD]->GetEntries() << std::endl; // used for debugging
-		    if (barrelFrontStrip[iSide][iStrip][iUD]->GetEntries()>300){
-            //pass histo to co-efficient finding function
-			    double value = MatchstickCalibration(barrelFrontStrip[iSide][iStrip][iUD], coeffset);
-			    //std::cout << "value (must be >=0 for non-zero calibration parameters) is " << value << std::endl; used for debugging
-			    if (value>=0){  
-				    barrelFrontStrip[iSide][iStrip][iUD]->Write();//save hist to output file
-				    coeff.push_back(coeffset); 
-				    nptToken.push_back(nameTitle); // strip's token name in NPTool
-				    }
-			else if (value==-3){
-                //error code for not enough peaks in spectra
-                //push channel name to vector for outputting to screen
-                badchannels.push_back(nameTitle);
-
-				if (coeffset[1]==-1){
-					coeffset[1]=1;
-					}			
-				coeff.push_back(coeffset);
-				nptToken.push_back(nameTitle);
-				}
-			}
-		else {
-			coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
-			coeff.push_back(coeffset);
-			nptToken.push_back(nameTitle);
-			}
-        }
+    for(int iUD=0 ; iUD<2 ; iUD++){
+      currentHist = NULL;
+	    coeffset.clear();
+	    TString nameTitle = Form("TIARABARREL_MATCHSTICK_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
+	    if(iUD==1) nameTitle = Form("TIARABARREL_MATCHSTICK_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
+	    currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data())->Clone();
+  		currentHist->SetName(nameTitle+"_fit");
+	    //cout << "Number of entries (must be >300) is: " << currentHist->GetEntries() << endl; // used for debugging
+	    if (currentHist->GetEntries()>300){
+         //pass histo to co-efficient finding function
+		    double value = MatchstickCalibration(currentHist, coeffset);
+		    //cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; used for debugging
+		    if (value>=0){  
+			    currentHist->Write("",TObject::kOverwrite);//save hist to output file
+			    coeff.push_back(coeffset); 
+			    nptToken.push_back(nameTitle); // strip's token name in NPTool
+			    }
+		    else 
+		      if (value==-3){
+            //error code for not enough peaks in spectra
+            //push channel name to vector for outputting to screen
+            badchannels.push_back(nameTitle);
+			      if (coeffset[1]==-1){
+				      coeffset[1]=1;
+				    }			
+			      coeff.push_back(coeffset);
+			      nptToken.push_back(nameTitle);
+			    }
+		  }
+		    else {
+			    coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
+			    coeff.push_back(coeffset);
+			    nptToken.push_back(nameTitle);
+		  	}
+      }
     }
 }
 
 
-
 for (int iWedge =0; iWedge<6 ; iWedge++) {
-
 //rings
 	for(int iRing=0 ; iRing<16 ; iRing++){
-		coeffset.clear();
-		nameTitle = hyballRing[iWedge][iRing]->GetTitle();
-		//std::cout << "Number of entries (must be >300) is: " << hyballRing[iWedge][iRing]->GetEntries() << std::endl; // used for debugging
-		if (hyballRing[iWedge][iRing]->GetEntries()>300){
-            //pass histo to co-efficient finding function
-			double value = MatchstickCalibration(hyballRing[iWedge][iRing], coeffset);
-			//std::cout << "value (must be >=0 for non-zero calibration parameters) is " << value << std::endl; used for debugging
+    currentHist = NULL;
+    coeffset.clear();
+    TString nameTitle = Form("TIARAHYBALL_D%d_STRIP_RING%d_MATCHSTICK",iWedge+1,iRing+1);
+	  currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data())->Clone();
+    currentHist->SetName(nameTitle+"_fit");		    
+		//cout << "Number of entries (must be >300) is: " << currentHist->GetEntries() << endl; // used for debugging
+		if (currentHist->GetEntries()>300){
+      //pass histo to co-efficient finding function
+			double value = MatchstickCalibration(currentHist, coeffset);
+			//cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; used for debugging
 			if (value>=0){  
-				hyballRing[iWedge][iRing]->Write();//save hist to output file
+				currentHist->Write("",TObject::kOverwrite);//save hist to output file
 				coeff.push_back(coeffset); 
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 				}
-			else if (value==-3){
-                //error code for not enough peaks in spectra
-                //push channel name to vector for outputting to screen
-                badchannels.push_back(nameTitle);
- 
-				if (coeffset[1]==-1){
-					coeffset[1]=1;
+			else 
+			  if (value==-3){
+          //error code for not enough peaks in spectra
+          //push channel name to vector for outputting to screen
+          badchannels.push_back(nameTitle);
+				  if (coeffset[1]==-1){
+					  coeffset[1]=1;
 					}			
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
@@ -240,29 +274,33 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 
 	//sectors
 	for(int iSector=0 ; iSector<8 ; iSector++){
-		coeffset.clear();
-		nameTitle = hyballSector[iWedge][iSector]->GetTitle();
-		//std::cout << "Number of entries (must be >100) is: " << hyballSector[iWedge][iSector]->GetEntries() << std::endl; // used for debugging
-		if(hyballSector[iWedge][iSector]->GetEntries()>100){
-            //pass histo to co-efficient finding function
-			double value = MatchstickCalibration(hyballSector[iWedge][iSector], coeffset);
-			//std::cout << "value (must be >=0 for non-zero calibration parameters) is " << value << std::endl; // used for debugging
+	  currentHist = NULL;
+    coeffset.clear();
+    TString nameTitle = Form("TIARAHYBALL_D%d_STRIP_SECTOR%d_MATCHSTICK",iWedge+1,iSector+1);
+	  currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data())->Clone();
+    currentHist->SetName(nameTitle+"_fit");	
+		//cout << "Number of entries (must be >100) is: " << currentHist->GetEntries() << endl; // used for debugging
+		if(currentHist->GetEntries()>100){
+      //pass histo to co-efficient finding function
+			double value = MatchstickCalibration(currentHist, coeffset);
+			//cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; // used for debugging
 			if (value>=0){
-				hyballSector[iWedge][iSector]->Write();//save hist to output file
+				currentHist->Write("",TObject::kOverwrite);//save hist to output file
 				coeff.push_back(coeffset); 
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 				}
-			else if (value==-3){
-                //error code for not enough peaks in spectra
-                //push channel name to vector for outputting to screen
-                badchannels.push_back(nameTitle);
+			else 
+			if (value==-3){
+        //error code for not enough peaks in spectra
+        //push channel name to vector for outputting to screen
+        badchannels.push_back(nameTitle);
 				if (coeffset[1]==-1){
 					coeffset[1]=1;
-					}			
+				}			
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
-				}
 			}
+		}
 		else {
 			coeffset.push_back(0); coeffset.push_back(1); coeffset.push_back(0);				
 			coeff.push_back(coeffset);
@@ -272,104 +310,132 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 	}
 
     //Print to screen any channels with bad spectra
-    if(badchannels.size() > 0){
-        int badch = badchannels.size();
-        std::cout << "\nWARNING: LESS THAN 7 PEAKS FOUND IN MATCHSTICKS SPECTRUM FOR CHANNELS: " << std::endl;
-        for(int i ; i < badch ; i++){
-            std::cout << badchannels[i] << std::endl;
-        }
-        std::cout << "\nSETTING COEFFICIENTS TO ZERO - BAD SPECTRA.\nPLEASE CHECK THIS CHANNEL TO VERIFY THERE ARE SUFFICIENT PEAKS IN THIS SPECTRA." << std::endl;
+  if(badchannels.size() > 0){
+    int badch = badchannels.size();
+    cout << "\nWARNING: LESS THAN 7 PEAKS FOUND IN MATCHSTICKS SPECTRUM FOR CHANNELS: " << endl;
+    for(int i=0 ; i < badch ; i++){
+      cout << badchannels[i] << endl;
     }
+    cout << "\nSETTING COEFFICIENTS TO ZERO - BAD SPECTRA.\nPLEASE CHECK THIS CHANNEL TO VERIFY THERE ARE SUFFICIENT PEAKS IN THIS SPECTRA." << endl;
+  }
 
-output.Close();
+  fileToCalibrate->Close();
 
 //write in a text file 
-    fstream fileopen;
-    fileopen.open("Matchsticks_Calib.txt");
+  TString CalibfName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
+  CalibfName.ReplaceAll("root","txt");
+  CalibfName = "Matchsticks_Calib_"+CalibfName;
+  fstream fileopen;
+  fileopen.open(CalibfName.Data());
 
-    //Check whether there is currently a file with data of same type.
-    bool open = true;
-    if ( fileopen.peek() == std::ifstream::traits_type::eof() ){
-        open = false;
+  //Check whether there is currently a file with data of same type.
+  bool open = true;
+  if ( fileopen.peek() == ifstream::traits_type::eof() ){
+      open = false;
+  }
+  fileopen.close();
+  
+  //if file has no data create a file and input all new data.
+  if ( open == false ){
+    ofstream myfile;
+    myfile.open (CalibfName.Data());
+
+      cout << "No file found; creating file "<< CalibfName.Data() << endl;
+    for(unsigned int i = 0 ; i < coeff.size() ; i++){
+	    myfile << nptToken.at(i)<<" " ;
+	    for(unsigned int j = 0 ; j < coeff.at(i).size() ; j++)
+		    myfile << coeff.at(i).at(j)<<" " ;
+	        myfile<<endl;
+          
+	}
+    myfile.close();}
+
+  //if there is a file take data within file into consideration.
+  else{
+      //open file with data to be read
+    ifstream readfile;
+    readfile.open (CalibfName.Data());
+    cout << "File " << CalibfName << " found; including data from file" << endl;
+    string line; //element to be added to vectors
+    vector<vector<string>> readvalues; //2D vector for data from text file
+    
+    //take information line by line from file and insert into 2D vector by column
+    while(getline(readfile,line)){
+      //some elements to create 2D vector
+      vector<string> values;
+      stringstream ls(line);
+      string value;
+      while(ls>>value){
+          values.push_back(value);
+      }
+      if (values.size())
+          readvalues.push_back(values);
     }
-    fileopen.close();
-    
-    //if file has no data create a file and input all new data.
-    if ( open == false ){
-	    ofstream myfile;
-	    myfile.open ("Matchsticks_Calib.txt");
+    readfile.close();
 
-        cout << "No file found; creating file Matchsticks_Calib.txt" << endl;
-	    for(unsigned int i = 0 ; i < coeff.size() ; i++){
-		    myfile << nptToken.at(i)<<" " ;
-		    for(unsigned int j = 0 ; j < coeff.at(i).size() ; j++)
-			    myfile << coeff.at(i).at(j)<<" " ;
-		        myfile<<endl;
-            
-		}
-	    myfile.close();}
-
-    //if there is a file take data within file into consideration.
-    else{
-        //open file with data to be read
-	    ifstream readfile;
-	    readfile.open ("Matchsticks_Calib.txt");
-    
-        cout << "File Matchsticks_Calib.txt found; including data from file" << endl;
-
-        string line; //element to be added to vectors
-        vector<vector<string>> readvalues; //2D vector for data from text file
-
-        //take information line by line from file and insert into 2D vector by column
-        while(getline(readfile,line)){
-            //some elements to create 2D vector
-            vector<string> values;
-            stringstream ls(line);
-            string value;
-            while(ls>>value){
-                values.push_back(value);
-
-            }
-            if (values.size())
-                readvalues.push_back(values);
+    ofstream myfile;
+    myfile.open (CalibfName.Data());
+    //below sections makes a judgement whether to write to new file data
+    //from the previous file or newly calculated coefficients.
+    double element1, element2;
+    for(unsigned int j = 0 ; j < coeff.size() ; j++){
+      if(readvalues[j][0] == nptToken[j]){
+        //convert the data from file from string to double for comparison to new data.
+        element1 = stod(readvalues[j][1]);
+        element2 = stod(readvalues[j][2]);
+        if((element1 == 0 && element2 == 1) || (coeff[j][1] != 0 && coeff[j][2] != 0)){
+          myfile << nptToken.at(j) << " " ;
+          for(unsigned int k = 0 ; k < coeff.at(j).size() ; k++)
+            myfile << coeff.at(j).at(k)<<" " ;
+          myfile<<endl;                
         }
-        readfile.close();
-
-	    ofstream myfile;
-	    myfile.open ("Matchsticks_Calib.txt");
-
-
-        //below sections makes a judgement whether to write to new file data
-        //from the previous file or newly calculated coefficients.
-        double element1, element2;
-       	for(unsigned int j = 0 ; j < coeff.size() ; j++){
-            if(readvalues[j][0] == nptToken[j]){
-                //convert the data from file from string to double for comparison to new data.
-                element1 = stod(readvalues[j][1]);
-                element2 = stod(readvalues[j][2]);
-                if((element1 == 0 && element2 == 1) || (coeff[j][1] != 0 && coeff[j][2] != 0)){
-                    myfile << nptToken.at(j) << " " ;
-                    for(unsigned int k = 0 ; k < coeff.at(j).size() ; k++)
-			            myfile << coeff.at(j).at(k)<<" " ;
-		                myfile<<endl;                
-                }
-                else{
-		            for(unsigned int k = 0 ; k < readvalues.at(j).size() ; k++)
-			            myfile << readvalues.at(j).at(k)<<" " ;
-		                myfile<<endl;
-                }
-            }
-            else{
-            cout << "Something wrong with current Matchsticks_calib.txt file. File modified preventing match between tokens. Please either correct or delete current calib file." << endl;
-            }
-		}
-	    myfile.close(); 
+        else{
+          for(unsigned int k = 0 ; k < readvalues.at(j).size() ; k++)
+            myfile << readvalues.at(j).at(k)<<" " ;
+          myfile<<endl;
+        }
+      }
+      else{
+        cout << "Something wrong with current " << CalibfName << " file. File modified preventing match between tokens. Please either correct or delete current calib file." << endl;
+      }
     }
+    myfile.close(); 
+  }
 }
 
 
 double MatchstickCalibration(TH1* histo, vector<double>& coeff){
 
+   //adjust the histogram range to exclude first peak with high stat (noise)
+   int nbin = histo->GetNbinsX();
+   int bin200 = histo->FindBin(200); // 200 is an upper limit for noise peak
+   int bin1000 = histo->FindBin(1000); // 200 is an upper limit for noise peak
+   //cout << bin1000 << " " << histo->Integral(1,bin1000) << " " << histo->Integral(bin1000,nbin-1)  << endl ; 
+   if(histo->Integral(bin1000,nbin)<500){ // nopeaks at higher channels, no need to proceed
+    cout << "  nopeaks at higher channels, skipping " << histo->GetName() << endl; 
+    coeff.clear();
+    coeff.push_back(0);
+    coeff.push_back(-1);
+    coeff.push_back(0);
+    return -2;
+   }
+  
+  double xmax  = histo->GetXaxis()->GetXmax();
+  double xmin  = histo->GetXaxis()->GetXmin();
+  // Get the bin with maximum content below 200
+  histo->GetXaxis()->SetRangeUser(xmin,200);
+  int binlow  = histo->GetMaximumBin();
+  double binclow  = histo->GetBinContent(binlow);
+  // Get the bin with maximum content above 200
+  histo->GetXaxis()->SetRangeUser(200,xmax);
+  int binhigh  = histo->GetMaximumBin();
+  double binchigh  = histo->GetBinContent(binhigh);
+
+  // if the the noise peak is 3 times higher, readjust  
+   if (binclow > 3*binchigh){ 
+      //cout << " new x low " << histo->GetBinCenter(binlow)+50 << endl ; 
+      histo->GetXaxis()->SetRangeUser(histo->GetBinCenter(binlow)+50, xmax);
+   }
    //find peaks within the spectra using search from TSpectrum.h
    TSpectrum *matchstick_spectra = new TSpectrum(20);
    int PeakNbr = matchstick_spectra->Search(histo, 2,"", 0.05);
@@ -401,8 +467,8 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
 
         //Attempt to remove any noise peak at lowest channels
         //May need adjusting dependant on data
-        if(PeakFitPosition[10]-PeakFitPosition[9]<200 && PeakFitPosition[11]-PeakFitPosition[0]>500 && PeakFitPosition[9]-PeakFitPosition[8]<200){
-        PeakFitPosition.erase(PeakFitPosition.begin()+0);}
+        //if(PeakFitPosition[10]-PeakFitPosition[9]<200 && PeakFitPosition[11]-PeakFitPosition[0]>500 && PeakFitPosition[9]-PeakFitPosition[8]<200){
+        //PeakFitPosition.erase(PeakFitPosition.begin()+0);}
 
 
         //vector for the pulser voltages in mV, may need adjusting depending on the
@@ -429,9 +495,10 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         MatchstickVoltage.push_back(10000.0);
 
         //remove any pulser voltage not associated to a peak in the spectra
-        int MatchstickEndVoltage = PeakFitPosition.size();
-        MatchstickVoltage.erase(MatchstickVoltage.begin() + (MatchstickEndVoltage-1), MatchstickVoltage.end());
-
+        //int MatchstickEndVoltage = PeakFitPosition.size();
+        //MatchstickVoltage.erase(MatchstickVoltage.begin() + (MatchstickEndVoltage-1), MatchstickVoltage.end());
+        MatchstickVoltage.resize(PeakFitPosition.size());
+        
         //plot pulser voltage vs channel number, fit to determine function of the 
         // ADC's non-linearity and save graph to output root file.
         TGraph* graph = new TGraph(PeakFitPosition.size(), &PeakFitPosition[0], &MatchstickVoltage[0]);
@@ -454,8 +521,8 @@ double MatchstickCalibration(TH1* histo, vector<double>& coeff){
         graph->Fit(polfit,"QR");
         gStyle -> SetOptStat(0);
         gStyle -> SetOptFit(111);
-        graph->Write(histo->GetTitle());
-
+        TString graphname = TString(histo->GetTitle())+"_gr";
+        graph->Write(graphname.Data(),TObject::kOverwrite);
 
         //retrieve fit co-efficients and push into vector to be returned to main
         double polfit0, polfit1, polfit2;
