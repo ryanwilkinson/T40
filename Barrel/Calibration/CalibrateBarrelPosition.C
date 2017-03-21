@@ -64,8 +64,11 @@ void CalibrateBarrelPosition(TString tripleAlphaFileName/*to avoid conflict inpu
   plotsFileName = "inspect_"+plotsFileName;
 
   //local variable
+  TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
+  CalibfName.ReplaceAll("root","txt");
+  CalibfName = "Barrel_Calib_Pos_"+CalibfName;
   ofstream outputFile;
-  outputFile.open("Barrel_Calib_Pos.txt");
+  outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
 
   TFile* fileToCalibrate;

@@ -273,8 +273,11 @@ hyballEnergyOffsetSector->Write("",TObject::kOverwrite);
 fileToCalibrate->Close();
 
 //write in a text file 
-	ofstream myfile;
-	myfile.open ("Hyball_Calib.txt");
+  TString CalibfName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
+  CalibfName.ReplaceAll("root","txt");
+  CalibfName = "Hyball_Calib_"+CalibfName;
+  ofstream myfile;
+  myfile.open (CalibfName.Data());
 	for(unsigned int i = 0 ; i < coeff.size() ; i++){
 		myfile << nptToken.at(i)<<" " ;
 		for(unsigned int j = 0 ; j < coeff.at(i).size() ; j++)

@@ -80,8 +80,11 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);
 
   //local variable
+  TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
+  CalibfName.ReplaceAll("root","txt");
+  CalibfName = "Barrel_Calib_"+CalibfName;
   ofstream outputFile;
-  outputFile.open("Barrel_Calib.txt");
+  outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
 
   TFile* fileToCalibrate;
