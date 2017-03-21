@@ -23,7 +23,6 @@ double fRing_E(double energy, unsigned short wedge, unsigned short ring);
 double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 
 
-
 void CalibrateHyball(TString pathToFile/*to avoid conflict input the file name in the terminal*/,
 					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){
 
