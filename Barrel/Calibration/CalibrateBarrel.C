@@ -45,15 +45,18 @@ using namespace::std;
 const double striphalflength = 48.4;
 
 //global variables
-vector <double> gDataSum1,gDataSumerr1,gDataSum2,gDataSumerr2,gDataSum3,gDataSumerr3,gPos,gZeroVector;
+vector <double> gDataSum1,gDataSumerr1,gDataSum2,gDataSumerr2,gDataSum3,gDataSumerr3,gSlicePos,gZeroVector;
+double gPos[2]; // [0] ->downstream strip position; [1] -> Upstream strip position 
 const double* gFinalCalParam;
 const double* gFinalCalParamError;
 NPL::EnergyLoss* gELossAlphaInSi ;
 
 //functions
 TH2D* FindHistogram(TString histname, TString filename); // finds a histogram "histname" in file "filename"
+TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax); // function fitting the positions 
 void SliceHistogram(TH2D* hist, int binstep,float ylow, float yup, float xmin, float xmax); // slices histogram "hist" between ylow and yup in steps of "binstep" bins, and select the x-range
 vector<double> FitOneSlice(TH1D* hist); // fits a single slice of histogram "hist"
+double ErfFunction(Double_t *x, Double_t *par); // A special erf function used in the position fit 
 int Minimise(void); // numerical minimisation function which produces the final calibration parameters
 double GetChiSquared(const double parameters[]); // returns a chi squared value to quantify the "goodness of fit" of a set of paramters "paramters[]" relative to the data
 vector<double> CalculateEnergySum(const double parameters[], vector<double> p, double energy); // calculates total energy from EU, ED and BD
@@ -86,56 +89,94 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
   ofstream outputFile;
   outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
-
+  TCanvas* canpos[8]; // initialises 8 canvases; 1 for each Barrel detector element, used for position fit
+  
   TFile* fileToCalibrate;
   if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
 	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
     cout << " No file to calibrate found - creating one now using triple alpha spectra..." << endl;
-	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
     fileToCalibrate = CreateFileToCalibrate(tripleAlphaFileName, pathToMatchsticks, plotsFileName);
 	fileToCalibrate->Write();
   }
   else {
 	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
 	cout << " The file " << plotsFileName << " is found in the present directory, it will be used for calibration " << endl;
-	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
 	fileToCalibrate = new TFile(plotsFileName,"UPDATE");
   }
   fileToCalibrate->cd();
 
+
   for (int detector=1; detector<=8; detector++){
+  
     TString name = Form("Barrel%d",detector);
     can[detector-1] = new TCanvas(name,name,650,650);
     can[detector-1]->Divide(2,2); // splits each canvas into 4; one for each strip in a detector
+    TString namepos = Form("BarrelPos%d",detector);
+    canpos[detector-1] = new TCanvas(namepos,namepos,650,650);
+		canpos[detector-1]->Divide(4,2); // splits each canvas into 8; 2 for each strip in a detector
+		
     for (int strip=1; strip<=4; strip++){
       ClearGlobalParameters(); // clear parameters
-	  TString hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
-	  TH2D* h2 = FindHistogram(hname, plotsFileName);
+      TString hname;
+      
+      // *************** Calibrate Energies *****************************
+      for (int du=0; du<2; du++){
+			  hname = Form("TIARABARREL_B%d_DOWNSTREAM%d_P",detector,strip); 
+				if (du == 1) 
+				  hname = Form("TIARABARREL_B%d_UPSTREAM%d_P",detector,strip);
+				TH1F* currentHistPos = (TH1F*) fileToCalibrate->FindObjectAny(hname.Data());
+				canpos[detector-1]->cd(2*(strip-1)+(du+1)); 
+        if (currentHistPos && currentHistPos->Integral()>2000) {
+					cout << " Working on " << hname << endl;
+          // Find the good window
+					double rmin=0.7;double rmax=1.0;
+		      //FitWindow(TH1F* hist, du, rmin, rmax); // this will give rmin and rmax CHECK!
+		      TF1* fitfunc = FitPosition(currentHistPos, du, rmin, rmax);
+          currentHistPos->Draw(); //Draw for inspection
+          gPos[du] = fitfunc->GetParameter(1); // fill in the golbal variable
+          //cout << du << " " << gPos[du] << endl ; 
+				}
+				else { // for when there is no histogram currentHistPos or if currentHistPos is empty
+				  double kdummy; 
+          if (du==0) kdummy = -0.66;
+          else kdummy =+0.66; 
+          gPos[du]=kdummy; 
+        }
+      }
+      //store in file
+      double k = (gPos[1] - gPos[0])/2;
+      double d = (gPos[1] + gPos[0])/2;
+      outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << (-d/k) << " " << (1/k) << endl; 
+      
+      // *************** Calibrate Energies *****************************
+	    hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
+	    TH2D* h2 = FindHistogram(hname, plotsFileName);
       can[detector-1]->cd(strip);
       if (h2 && h2->Integral()) {
         cout << " Working on " << hname << endl;
-	    SliceHistogram(h2,10,-0.67,0.67,600,1300); // slice between -0.67 and 0.67 with a step of 10 bins
-		int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
+	      SliceHistogram(h2,10,gPos[0],gPos[1],600,1100); // slice between -0.67 and 0.67 with a step of 10 bins
+		    int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
         ShowControl2DSpectra(h2,can[detector-1],strip);
         double BDtune=1; // this variable allows one to change the degree of the ballistic deficit (BD) if necessary
-	    outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E " << gFinalCalParam[1] << " " << gFinalCalParam[0] << endl; // calibration coefficients and nptool tokens
-		outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E " << gFinalCalParam[3] << " " << gFinalCalParam[2] << endl;
-		if(-gFinalCalParam[4]<0) { // BD should be positive
+	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E " << gFinalCalParam[1] << " " << gFinalCalParam[0] << endl; // calibration coefficients and nptool tokens
+		    outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E " << gFinalCalParam[3] << " " << gFinalCalParam[2] << endl;
+		    if(-gFinalCalParam[4]<0) { // BD should be positive
           cout << " WARNING: Ballistic deficit is negative, replacing by value zero "<<endl;
-		  BDtune=0;
-		  }
+		      BDtune=0;
+		    }
         outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
-		outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << 0 << " " << 0.66 << endl;
-        ShowCalibration(detector, strip)->Draw(); // on separate graph
+        //ShowCalibration(detector, strip)->Draw(); // on separate graph
       }
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
-		    outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
-		    outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
-	        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
-		    outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << 0 << " " << 0.66 << endl;
+	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
+	      outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
+        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
       }
-    }
-  }
+      
+    } //strip
+    
+  canpos[detector-1]->Draw();
+  } //detector
   outputFile.close();
   cout << "...done!" << endl;
 
@@ -165,9 +206,9 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
   for (int iSide =0; iSide<8 ; iSide++) {
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_P",iSide+1,iStrip+1);
-	      barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,400,+0.2,+0.8);
+	      barrelFrontStripP[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,400,+0.4,+1);
 		  nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_P",iSide+1,iStrip+1);
-		  barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,400,-0.8,-0.2);
+		  barrelFrontStripP[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,400,-1,-0.4);
 		}
 	  for(int iStrip=0 ; iStrip<4 ; iStrip++){
 		  nameTitle =Form("TIARABARREL_B%d_UD%d_E",iSide+1,iStrip+1);
@@ -213,12 +254,14 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
 			  if( sideU==sideD && stripU==stripD ){
 				  double energyU = fUpstream_E(barrelData->GetFrontUpstreamEEnergy(iU),sideU,stripU);
 				  double energyD = fDownstream_E(barrelData->GetFrontDownstreamEEnergy(iD),sideD,stripD);
+				  double P = (energyU-energyD)/(energyD+energyU);
+				  double E = energyD+energyU;
 				  barrelFrontStripUD[sideU-1][stripU-1]->Fill(energyD,energyU);
-				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(energyU+energyD,(energyU-energyD)/(energyD+energyU));
-				  if(energyD>0 && (energyD/(energyU+energyD)>0.60))
-				    barrelFrontStripP[sideU-1][stripU-1][0]->Fill((energyU-energyD)/(energyU+energyD));
-				  if(energyU>0 && (energyU/(energyU+energyD)>0.60))
-				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill((energyU-energyD)/(energyU+energyD)); 
+				  barrelFrontStripPE[sideU-1][stripU-1]->Fill(E,P);
+				  if(energyU>50 && energyD>50 && E>700 && P<-0.4)
+				    barrelFrontStripP[sideU-1][stripU-1][0]->Fill(P);
+				  if(energyU>50 && energyD>50 && E>700 && P>+0.4)
+				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill(P); 
 			 }
 		  }
 	  }
@@ -265,7 +308,7 @@ void SliceHistogram(TH2D* h2, int binstep, float ylow, float yup, float xmin, fl
 			gDataSumerr2.push_back(parameters[3]);
 			gDataSum3.push_back(parameters[4]);
 			gDataSumerr3.push_back(parameters[5]);
-			gPos.push_back(0.5*(y1+y2));
+			gSlicePos.push_back(0.5*(y1+y2));
 		  gZeroVector.push_back(0);
 		}
 		bin+=binstep+1;
@@ -286,7 +329,7 @@ vector <double> FitOneSlice(TH1D* Slice){
 		PeakPositions.push_back(peaks[j]);
 	}
 	sort(PeakPositions.begin(), PeakPositions.end());
-  if (NumPeaksFound==3 && Slice->Integral()>400 ){
+  if (NumPeaksFound==3 && Slice->Integral()>150 ){
 		TF1* fittingfunc = new TF1("fittingfunc", "gaus(0)+gaus(3)+gaus(6)", PeakPositions.front()-20, PeakPositions.back()+20);
 		fittingfunc->SetParameter(1,PeakPositions[0]);
 		fittingfunc->SetParameter(4,PeakPositions[1]);
@@ -354,22 +397,22 @@ int Minimise(void){
 /*****************************************************************************************************************/
 double GetChiSquared(const double parameters[]){
 
-	vector<double> calSumc1 = CalculateEnergySum(parameters, gPos, 5156.59);
-	vector<double> calSumc2 = CalculateEnergySum(parameters, gPos, 5485.56);
-	vector<double> calSumc3 = CalculateEnergySum(parameters, gPos, 5804.77);
+	vector<double> calSumc1 = CalculateEnergySum(parameters, gSlicePos, 5156.59);
+	vector<double> calSumc2 = CalculateEnergySum(parameters, gSlicePos, 5485.56);
+	vector<double> calSumc3 = CalculateEnergySum(parameters, gSlicePos, 5804.77);
 
 	vector<double> bitsOfChi1, bitsOfChi2, bitsOfChi3;
   double ChiSquared=0;
   double diff = 0 ;
-  for(unsigned int i=0; i<gPos.size(); i++){
+  for(unsigned int i=0; i<gSlicePos.size(); i++){
     diff = (calSumc1[i]-gDataSum1[i]);
     bitsOfChi1.push_back(diff*diff/(gDataSumerr1[i]*gDataSumerr1[i]));
   }
-  for(unsigned int i=0; i<gPos.size(); i++){
+  for(unsigned int i=0; i<gSlicePos.size(); i++){
     diff = (calSumc2[i]-gDataSum2[i]);
     bitsOfChi2.push_back(diff*diff/(gDataSumerr2[i]*gDataSumerr2[i]));
   }
-  for(unsigned int i=0; i<gPos.size(); i++){
+  for(unsigned int i=0; i<gSlicePos.size(); i++){
     diff = (calSumc3[i]-gDataSum3[i]);
     bitsOfChi3.push_back(diff*diff/(gDataSumerr3[i]*gDataSumerr3[i]));
   }
@@ -390,14 +433,16 @@ double GetChiSquared(const double parameters[]){
 vector<double> CalculateEnergySum(const double parameters[], vector<double> p, double energy){
 
 	vector<double> calSum;
-	double k = 0.66;
 
   for (unsigned int i = 0 ; i < p.size() ; i++){
 	  // pass from x and y to SUM=x+y and POS=(y-x)
 	  // where y: U = 0.5*SUM*(1+POS)   x: D = 0.5*SUM*(1-POS)
+    double k = (gPos[1] - gPos[0])/2;
+    double d = (gPos[1] + gPos[0])/2;
+
     double angle = PosToAngle(p[i]);
     double slow = gELossAlphaInSi->Slow(energy*keV,1*micrometer,angle)/keV;
-	  double s = slow/(1-parameters[4]*(k*k-p[i]*p[i])) - parameters[1] - parameters[3]; // the ballistic deficit is subtracted here, this should lead to BD>0
+	  double s = slow/( 1 - parameters[4]*(k*k-pow(p[i]-d,2)) ) - parameters[1] - parameters[3]; // the ballistic deficit is subtracted here, this should lead to BD>0
 	  s = 2*s/(p[i]*(parameters[0]-parameters[2]) + parameters[0] + parameters[2] );
 	  calSum.push_back(s);
   }
@@ -418,27 +463,30 @@ void ShowControl2DSpectra(TH2D* h2, TCanvas* can, int num){
 
   can->cd(num);
   h2->Draw("colz");
-  TGraphErrors* DataAlphaSet1 = new TGraphErrors(gDataSum1.size(), &gDataSum1[0], &gPos[0], &gDataSumerr1[0], &gZeroVector[0]);
-  TGraphErrors* DataAlphaSet2 = new TGraphErrors(gDataSum2.size(), &gDataSum2[0], &gPos[0], &gDataSumerr2[0], &gZeroVector[0]);
-  TGraphErrors* DataAlphaSet3 = new TGraphErrors(gDataSum3.size(), &gDataSum3[0], &gPos[0], &gDataSumerr3[0], &gZeroVector[0]);
+  TGraphErrors* DataAlphaSet1 = new TGraphErrors(gDataSum1.size(), &gDataSum1[0], &gSlicePos[0], &gDataSumerr1[0], &gZeroVector[0]);
+  TGraphErrors* DataAlphaSet2 = new TGraphErrors(gDataSum2.size(), &gDataSum2[0], &gSlicePos[0], &gDataSumerr2[0], &gZeroVector[0]);
+  TGraphErrors* DataAlphaSet3 = new TGraphErrors(gDataSum3.size(), &gDataSum3[0], &gSlicePos[0], &gDataSumerr3[0], &gZeroVector[0]);
 
 	DataAlphaSet1->Draw("P same");
 	DataAlphaSet1->SetMarkerStyle(20);
 	DataAlphaSet1->SetMarkerColor(kRed);
+	DataAlphaSet1->SetLineColor(7);
 	DataAlphaSet2->Draw("P same");
 	DataAlphaSet2->SetMarkerStyle(20);
 	DataAlphaSet2->SetMarkerColor(kBlue);
+	DataAlphaSet2->SetLineColor(7);
 	DataAlphaSet3->Draw("P same");
 	DataAlphaSet3->SetMarkerStyle(20);
 	DataAlphaSet3->SetMarkerColor(kGreen);
+  DataAlphaSet3->SetLineColor(7);
 
-	vector<double> calSum1=CalculateEnergySum(gFinalCalParam, gPos, 5156.59);
-	vector<double> calSum2=CalculateEnergySum(gFinalCalParam, gPos, 5485.56);
-	vector<double> calSum3=CalculateEnergySum(gFinalCalParam, gPos, 5804.77);
+	vector<double> calSum1=CalculateEnergySum(gFinalCalParam, gSlicePos, 5156.59);
+	vector<double> calSum2=CalculateEnergySum(gFinalCalParam, gSlicePos, 5485.56);
+	vector<double> calSum3=CalculateEnergySum(gFinalCalParam, gSlicePos, 5804.77);
 
-	TGraphErrors* calAlphaSet1 = new TGraphErrors(calSum1.size(), &calSum1[0], &gPos[0], &gZeroVector[0], &gZeroVector[0]);
-	TGraphErrors* calAlphaSet2 = new TGraphErrors(calSum2.size(), &calSum2[0], &gPos[0], &gZeroVector[0], &gZeroVector[0]);
-	TGraphErrors* calAlphaSet3 = new TGraphErrors(calSum3.size(), &calSum3[0], &gPos[0], &gZeroVector[0], &gZeroVector[0]);
+	TGraphErrors* calAlphaSet1 = new TGraphErrors(calSum1.size(), &calSum1[0], &gSlicePos[0], &gZeroVector[0], &gZeroVector[0]);
+	TGraphErrors* calAlphaSet2 = new TGraphErrors(calSum2.size(), &calSum2[0], &gSlicePos[0], &gZeroVector[0], &gZeroVector[0]);
+	TGraphErrors* calAlphaSet3 = new TGraphErrors(calSum3.size(), &calSum3[0], &gSlicePos[0], &gZeroVector[0], &gZeroVector[0]);
 
 	calAlphaSet1->Draw("P same");
 	calAlphaSet1->SetMarkerStyle(20);
@@ -462,7 +510,7 @@ void ClearGlobalParameters(void){
 	gDataSumerr2.clear();
 	gDataSum3.clear();
 	gDataSumerr3.clear();
-	gPos.clear();
+	gSlicePos.clear();
 	gZeroVector.clear();
 
 	gFinalCalParam=NULL;
@@ -470,18 +518,21 @@ void ClearGlobalParameters(void){
 }
 /*****************************************************************************************************************/
 double PosToAngle(double pos){
-	double x = (pos/0.66)*striphalflength; // in mm
+  // recaluculate the new length and the shift
+  double k = (gPos[1] - gPos[0])/2;
+  double d = (gPos[1] + gPos[0])/2;
+	double x = striphalflength * ((pos-d)/k); // in mm
 	return TMath::ATan(x/33); // 33 mm is the distance from beam spot  (supposed at the center to the strip at 90 degree)
 }
 /*****************************************************************************************************************/
 double ApplyCalibration(double Uch, double Dch){
-	double k = 0.66;
+  // recaluculate the new length and the shift
+  double k = (gPos[1] - gPos[0])/2;
+  double d = (gPos[1] + gPos[0])/2;
 	double pos = (Uch-Dch)/(Dch+Uch);
 	double U = Uch*gFinalCalParam[0]+ gFinalCalParam[1];
 	double D = Dch*gFinalCalParam[2]+ gFinalCalParam[3];
-    //return (U+D);
-    //return -gFinalCalParam[4](k*k-pos*pos);
-	return (U+D)*(1-gFinalCalParam[4]*(k*k-pos*pos));  // the BD<0 thus the negative sugn adds it here!
+	return (U+D)*( 1-gFinalCalParam[4]*(k*k-pow(pos-d,2)) );  // the BD<0 thus the negative sugn adds it here!
 }
 /*****************************************************************************************************************/
 TCanvas* ShowCalibration(int det, int strip){
@@ -490,24 +541,24 @@ TCanvas* ShowCalibration(int det, int strip){
 
   for (unsigned int i = 0 ; i < gDataSum1.size(); i++){
      //reconstruct the U (yaxis) vs D(xaxis) plane
-     double uch = 0.5 * gDataSum1[i] * (1+gPos[i]); // these definitions are strict
-     double dch = 0.5 * gDataSum1[i] * (1-gPos[i]);
+     double uch = 0.5 * gDataSum1[i] * (1+gSlicePos[i]); // these definitions are strict
+     double dch = 0.5 * gDataSum1[i] * (1-gSlicePos[i]);
      calEnergy.push_back(ApplyCalibration(uch, dch));
-     pos.push_back(gPos[i]);
+     pos.push_back(gSlicePos[i]);
   }
 
   for (unsigned int i = 0 ; i < gDataSum2.size(); i++){
-    double uch = 0.5 * gDataSum2[i] * (1+gPos[i]);
-    double dch = 0.5 * gDataSum2[i] * (1-gPos[i]);
+    double uch = 0.5 * gDataSum2[i] * (1+gSlicePos[i]);
+    double dch = 0.5 * gDataSum2[i] * (1-gSlicePos[i]);
     calEnergy.push_back(ApplyCalibration(uch, dch));
-    pos.push_back(gPos[i]);
+    pos.push_back(gSlicePos[i]);
   }
 
   for (unsigned int i = 0 ; i < gDataSum3.size(); i++){
-    double uch = 0.5 * gDataSum3[i] * (1+gPos[i]);
-    double dch = 0.5 * gDataSum3[i] * (1-gPos[i]);
+    double uch = 0.5 * gDataSum3[i] * (1+gSlicePos[i]);
+    double dch = 0.5 * gDataSum3[i] * (1-gSlicePos[i]);
     calEnergy.push_back(ApplyCalibration(uch, dch));
-    pos.push_back(gPos[i]);
+    pos.push_back(gSlicePos[i]);
 	}
 
   cout <<  "  size of points vector " << pos.size() << endl;
@@ -523,16 +574,16 @@ TCanvas* ShowCalibration(int det, int strip){
 
 	TCanvas* can = new TCanvas(Form("Cal_det%d_strip%d",det,strip),Form("Cal_det%d_strip%d",det,strip),650,650);
   allAlpha->Draw("ap");
-	TLine* lineE1 = new TLine (5156.6,-0.66,5156.6,0.66);
+	TLine* lineE1 = new TLine (5156.6,gPos[0],5156.6,gPos[1]);
 	lineE1->SetLineColor(kRed);
 	lineE1->Draw();
-	TLine* lineE2 = new TLine (5485.6,-0.66,5485.6,0.66);
+	TLine* lineE2 = new TLine (5485.6,gPos[0],5485.6,gPos[1]);
 	lineE2->Draw();
   lineE2->SetLineColor(kRed);
-	TLine* lineE3 = new TLine (5804.8,-0.66,5804.8,0.66);
+	TLine* lineE3 = new TLine (5804.8,gPos[0],5804.8,gPos[1]);
 	lineE3->Draw();
   lineE3->SetLineColor(kRed);
-
+  
   return can;
 }
 
@@ -558,3 +609,49 @@ double fDownstream_E(double energy, unsigned short side, unsigned short strip){
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
+
+
+
+double ErfFunction(Double_t *x, Double_t *par) {
+  // Par[0]: amplitude measured from the y = 0, amp is positive for "S" shape 
+  // Par[1]: inflexion point position, (what we are looking for) 
+  // Par[2]: steepness of the curve, (the smaller the steeper) 
+
+   double xx = x[0];
+   double f = (par[0]/2)*TMath::Erf((xx-par[1])/par[2]) + TMath::Abs(par[0]/2);
+   return f;
+}
+
+
+TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
+  //[!] du = {DownStream,UpStream} = {0,1}  => sign={+,-}
+  hist->Rebin();
+  //Set sign for Upstream by default, rmin, rmax are the same
+  double sign = -1 ;
+  // if downstream histo: change sign, swap rmin, rmax
+  if (du==0){ 
+      double rmincopy=rmin;
+      sign = +1 ;
+      rmin = -rmax;
+      rmax = -rmincopy;
+   }
+
+   double amp = sign*150 ; 
+   double pos = -sign*0.8 ; // CHECK
+   double steepness = 0.03 ; 
+
+    TF1* fitFunction = new TF1("fitFunction", ErfFunction ,rmin, rmax, 3); // 3 in nb of param
+		fitFunction->SetParameters(amp,pos,steepness);
+		fitFunction->SetParNames("Amp","Pos","Steepness");
+		fitFunction->SetParLimits(0,0,amp*2);
+		fitFunction->SetParLimits(1,pos-0.1,pos+0.1);
+		fitFunction->SetParLimits(2,0.001,steepness*3);
+		//fitFunction->FixParameter(2,steepness);
+
+		hist->Fit(fitFunction,"RM");
+    hist->SetLineColor(8);
+    TF1* fit = hist->GetFunction(fitFunction->GetName());
+
+ return fit;
+}
+
