@@ -138,8 +138,8 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
 				}
 				else { // for when there is no histogram currentHistPos or if currentHistPos is empty
 				  double kdummy; 
-          if (du==0) kdummy = -0.66;
-          else kdummy =+0.66; 
+          if (du==0) kdummy = -0.71; // default value
+          else kdummy =+0.71; 
           gPos[du]=kdummy; 
         }
       }
