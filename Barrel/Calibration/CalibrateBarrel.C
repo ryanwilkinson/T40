@@ -146,7 +146,7 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
       //store in file
       double k = (gPos[1] - gPos[0])/2;
       double d = (gPos[1] + gPos[0])/2;
-      outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << (-d/k) << " " << (1/k) << endl; 
+      outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << d << " " << k << endl; 
       
       // *************** Calibrate Energies *****************************
 	    hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
@@ -164,13 +164,13 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
           cout << " WARNING: Ballistic deficit is negative, replacing by value zero "<<endl;
 		      BDtune=0;
 		    }
-        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
+        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
         //ShowCalibration(detector, strip)->Draw(); // on separate graph
       }
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
 	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
 	      outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
-        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
+        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC 0 0 0 " << endl;
       }
       
     } //strip
@@ -192,8 +192,8 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
   Cal->AddFile(pathToMatchsticks.Data());
   for(int i = 0 ; i < 8 ; ++i){
     for( int j = 0 ; j < 4 ; ++j){
-      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E")   ;
-      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E")   ;
+      Cal->AddParameter("TIARABARREL","B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK","TIARABARREL_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
+      Cal->AddParameter("TIARABARREL","B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK","TIARABARREL_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
     }
   }
   Cal->LoadParameterFromFile();
@@ -590,22 +590,22 @@ TCanvas* ShowCalibration(int det, int strip){
 
 ///////////////////////////////////////////////////////////////////////////////
 double fUpstream_E(double energy, unsigned short side, unsigned short strip){
-  static string name; name = "TIARABARREL/MATCHSTICK_B" ;
+  static string name; name = "TIARABARREL/B" ;
   name+= NPL::itoa( side ) ;
   name+= "_UPSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_E";
+  name+= "_MATCHSTICK";
 
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
 ///////////////////////////////////////////////////////////////////////////////
 double fDownstream_E(double energy, unsigned short side, unsigned short strip){
-  static string name; name ="TIARABARREL/MATCHSTICK_B" ;
+  static string name; name ="TIARABARREL/B" ;
   name+= NPL::itoa( side ) ;
   name+= "_DOWNSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_E";
+  name+= "_MATCHSTICK";
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }

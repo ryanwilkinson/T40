@@ -53,9 +53,9 @@ TString nameTitle; // same as NPTool calibration token
 //create hists for barrel info
 for (int iSide =0; iSide<8 ; iSide++) {
 	for(int iStrip=0 ; iStrip<4 ; iStrip++){
-		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
+		nameTitle =Form("TIARABARREL_B%d_UPSTREAM%d_MATCHSTICK",iSide+1,iStrip+1);
 		barrelFrontStrip[iSide][iStrip][0]= new TH1F (nameTitle,nameTitle,4050,0,4050);
-		nameTitle =Form("TIARABARREL_MATCHSTICK_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
+		nameTitle =Form("TIARABARREL_B%d_DOWNSTREAM%d_MATCHSTICK",iSide+1,iStrip+1);
 		barrelFrontStrip[iSide][iStrip][1]= new TH1F (nameTitle,nameTitle,4050,0,4050);
 		}
 }
@@ -201,8 +201,8 @@ for (int iSide =0; iSide<8 ; iSide++) {
     for(int iUD=0 ; iUD<2 ; iUD++){
       currentHist = NULL;
 	    coeffset.clear();
-	    TString nameTitle = Form("TIARABARREL_MATCHSTICK_B%d_UPSTREAM%d_E",iSide+1,iStrip+1);
-	    if(iUD==1) nameTitle = Form("TIARABARREL_MATCHSTICK_B%d_DOWNSTREAM%d_E",iSide+1,iStrip+1);
+	    TString nameTitle = Form("TIARABARREL_B%d_UPSTREAM%d_MATCHSTICK",iSide+1,iStrip+1);
+	    if(iUD==1) nameTitle = Form("TIARABARREL_B%d_DOWNSTREAM%d_MATCHSTICK",iSide+1,iStrip+1);
 	    currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data())->Clone();
   		currentHist->SetName(nameTitle+"_fit");
 	    //cout << "Number of entries (must be >300) is: " << currentHist->GetEntries() << endl; // used for debugging
