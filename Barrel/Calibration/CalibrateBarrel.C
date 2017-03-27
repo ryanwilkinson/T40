@@ -46,17 +46,17 @@ const double striphalflength = 48.4;
 
 //global variables
 vector <double> gDataSum1,gDataSumerr1,gDataSum2,gDataSumerr2,gDataSum3,gDataSumerr3,gSlicePos,gZeroVector;
-double gPos[2]; // [0] ->downstream strip position; [1] -> Upstream strip position 
+double gPos[2]; // [0] ->downstream strip position; [1] -> Upstream strip position
 const double* gFinalCalParam;
 const double* gFinalCalParamError;
 NPL::EnergyLoss* gELossAlphaInSi ;
 
 //functions
 TH2D* FindHistogram(TString histname, TString filename); // finds a histogram "histname" in file "filename"
-TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax); // function fitting the positions 
+TF1* FitPosition(TH1F* hist, TString pathToFittingBounds, int du, int detector, int strip); // function fitting the positions
 void SliceHistogram(TH2D* hist, int binstep,float ylow, float yup, float xmin, float xmax); // slices histogram "hist" between ylow and yup in steps of "binstep" bins, and select the x-range
 vector<double> FitOneSlice(TH1D* hist); // fits a single slice of histogram "hist"
-double ErfFunction(Double_t *x, Double_t *par); // A special erf function used in the position fit 
+double ErfFunction(Double_t *x, Double_t *par); // A special erf function used in the position fit
 int Minimise(void); // numerical minimisation function which produces the final calibration parameters
 double GetChiSquared(const double parameters[]); // returns a chi squared value to quantify the "goodness of fit" of a set of paramters "paramters[]" relative to the data
 vector<double> CalculateEnergySum(const double parameters[], vector<double> p, double energy); // calculates total energy from EU, ED and BD
@@ -72,12 +72,12 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the file name in the terminal*/,
-					 TString pathToMatchsticks="../../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){ 
+void CalibrateBarrel(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/T40/calibration/calibrationData/newData/ER1.root",
+					 					 TString pathToMatchsticks="/home/rw00227/nptool/Projects/T40/calibration/Matchsticks_Calib_w_linear_post_xmas.txt",
+									 	 TString pathToFittingBounds="/home/rw00227/nptool/Projects/T40/calibration/FittingBounds.txt"){
 
   //generate the outputFileName
-  TString plotsFileName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
-  plotsFileName = "inspect_"+plotsFileName;
+  TString plotsFileName="/home/rw00227/nptool/Projects/T40/calibration/newestER1_inspectBarrelHisto.root";
 
   //global variable
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);
@@ -87,10 +87,10 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
   CalibfName.ReplaceAll("root","txt");
   CalibfName = "Barrel_Calib_"+CalibfName;
   ofstream outputFile;
-  outputFile.open(CalibfName.Data());
+	outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
   TCanvas* canpos[8]; // initialises 8 canvases; 1 for each Barrel detector element, used for position fit
-  
+
   TFile* fileToCalibrate;
   if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
 	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
@@ -107,53 +107,57 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
 
 
   for (int detector=1; detector<=8; detector++){
-  
+
     TString name = Form("Barrel%d",detector);
     can[detector-1] = new TCanvas(name,name,650,650);
     can[detector-1]->Divide(2,2); // splits each canvas into 4; one for each strip in a detector
     TString namepos = Form("BarrelPos%d",detector);
     canpos[detector-1] = new TCanvas(namepos,namepos,650,650);
 		canpos[detector-1]->Divide(4,2); // splits each canvas into 8; 2 for each strip in a detector
-		
+
     for (int strip=1; strip<=4; strip++){
+			if ((detector==1 && strip==3) || (detector==3) || (detector==5 && strip==1) || (detector==5 && strip==3) || (detector==6 && strip==2) || (detector==7 && strip==3)) {
+				cout << "Detector " << detector << " and Strip " << strip << " is a broken channel. Skipping..." << endl;
+				continue;
+			}
       ClearGlobalParameters(); // clear parameters
       TString hname;
-      
-      // *************** Calibrate Energies *****************************
+
+      // *************** Calibrate Positions *****************************
       for (int du=0; du<2; du++){
-			  hname = Form("TIARABARREL_B%d_DOWNSTREAM%d_P",detector,strip); 
-				if (du == 1) 
+			  hname = Form("TIARABARREL_B%d_DOWNSTREAM%d_P",detector,strip);
+				if (du == 1)
 				  hname = Form("TIARABARREL_B%d_UPSTREAM%d_P",detector,strip);
 				TH1F* currentHistPos = (TH1F*) fileToCalibrate->FindObjectAny(hname.Data());
-				canpos[detector-1]->cd(2*(strip-1)+(du+1)); 
+				canpos[detector-1]->cd(2*(strip-1)+(du+1));
         if (currentHistPos && currentHistPos->Integral()>2000) {
-					cout << " Working on " << hname << endl;
+					cout << "Position calibration: Working on " << hname << endl;
+					cout << detector << " " << strip << " " << du << endl;
           // Find the good window
-					double rmin=0.7;double rmax=1.0;
 		      //FitWindow(TH1F* hist, du, rmin, rmax); // this will give rmin and rmax CHECK!
-		      TF1* fitfunc = FitPosition(currentHistPos, du, rmin, rmax);
+		      TF1* fitfunc = FitPosition(currentHistPos, pathToFittingBounds, du, detector, strip);
           currentHistPos->Draw(); //Draw for inspection
           gPos[du] = fitfunc->GetParameter(1); // fill in the golbal variable
-          //cout << du << " " << gPos[du] << endl ; 
+          //cout << du << " " << gPos[du] << endl ;
 				}
 				else { // for when there is no histogram currentHistPos or if currentHistPos is empty
-				  double kdummy; 
-          if (du==0) kdummy = -0.71; // default value
-          else kdummy =+0.71; 
-          gPos[du]=kdummy; 
+				  double kdummy;
+          if (du==0) kdummy = -0.66;
+          else kdummy =+0.66;
+          gPos[du]=kdummy;
         }
       }
       //store in file
       double k = (gPos[1] - gPos[0])/2;
       double d = (gPos[1] + gPos[0])/2;
-      outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << d << " " << k << endl; 
-      
+      outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_POS " << (-d/k) << " " << (1/k) << endl;
+
       // *************** Calibrate Energies *****************************
 	    hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
 	    TH2D* h2 = FindHistogram(hname, plotsFileName);
       can[detector-1]->cd(strip);
       if (h2 && h2->Integral()) {
-        cout << " Working on " << hname << endl;
+        cout << "Energy calibration: Working on " << hname << endl;
 	      SliceHistogram(h2,10,gPos[0],gPos[1],600,1100); // slice between -0.67 and 0.67 with a step of 10 bins
 		    int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
         ShowControl2DSpectra(h2,can[detector-1],strip);
@@ -164,17 +168,17 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
           cout << " WARNING: Ballistic deficit is negative, replacing by value zero "<<endl;
 		      BDtune=0;
 		    }
-        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
+        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
         //ShowCalibration(detector, strip)->Draw(); // on separate graph
       }
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
 	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
 	      outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
-        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC 0 0 0 " << endl;
+        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
       }
-      
+
     } //strip
-    
+
   canpos[detector-1]->Draw();
   } //detector
   outputFile.close();
@@ -192,8 +196,8 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
   Cal->AddFile(pathToMatchsticks.Data());
   for(int i = 0 ; i < 8 ; ++i){
     for( int j = 0 ; j < 4 ; ++j){
-      Cal->AddParameter("TIARABARREL","B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK","TIARABARREL_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
-      Cal->AddParameter("TIARABARREL","B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK","TIARABARREL_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_MATCHSTICK")   ;
+      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_UPSTREAM"+NPL::itoa(j+1)+"_E")   ;
+      Cal->AddParameter("TIARABARREL","MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E","TIARABARREL_MATCHSTICK_B"+NPL::itoa(i+1)+"_DOWNSTREAM"+NPL::itoa(j+1)+"_E")   ;
     }
   }
   Cal->LoadParameterFromFile();
@@ -261,7 +265,7 @@ TFile* CreateFileToCalibrate(TString alphaCalibrationFile, TString pathToMatchst
 				  if(energyU>50 && energyD>50 && E>700 && P<-0.4)
 				    barrelFrontStripP[sideU-1][stripU-1][0]->Fill(P);
 				  if(energyU>50 && energyD>50 && E>700 && P>+0.4)
-				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill(P); 
+				    barrelFrontStripP[sideU-1][stripU-1][1]->Fill(P);
 			 }
 		  }
 	  }
@@ -329,7 +333,7 @@ vector <double> FitOneSlice(TH1D* Slice){
 		PeakPositions.push_back(peaks[j]);
 	}
 	sort(PeakPositions.begin(), PeakPositions.end());
-  if (NumPeaksFound==3 && Slice->Integral()>150 ){
+  if (NumPeaksFound==3 && Slice->Integral()>175 ){
 		TF1* fittingfunc = new TF1("fittingfunc", "gaus(0)+gaus(3)+gaus(6)", PeakPositions.front()-20, PeakPositions.back()+20);
 		fittingfunc->SetParameter(1,PeakPositions[0]);
 		fittingfunc->SetParameter(4,PeakPositions[1]);
@@ -583,29 +587,29 @@ TCanvas* ShowCalibration(int det, int strip){
 	TLine* lineE3 = new TLine (5804.8,gPos[0],5804.8,gPos[1]);
 	lineE3->Draw();
   lineE3->SetLineColor(kRed);
-  
+
   return can;
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////
 double fUpstream_E(double energy, unsigned short side, unsigned short strip){
-  static string name; name = "TIARABARREL/B" ;
+  static string name; name = "TIARABARREL/MATCHSTICK_B" ;
   name+= NPL::itoa( side ) ;
   name+= "_UPSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_MATCHSTICK";
+  name+= "_E";
 
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
 ///////////////////////////////////////////////////////////////////////////////
 double fDownstream_E(double energy, unsigned short side, unsigned short strip){
-  static string name; name ="TIARABARREL/B" ;
+  static string name; name ="TIARABARREL/MATCHSTICK_B" ;
   name+= NPL::itoa( side ) ;
   name+= "_DOWNSTREAM" ;
   name+= NPL::itoa( strip ) ;
-  name+= "_MATCHSTICK";
+  name+= "_E";
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
@@ -613,15 +617,14 @@ double fDownstream_E(double energy, unsigned short side, unsigned short strip){
 
 
 double ErfFunction(Double_t *x, Double_t *par) {
-  // Par[0]: amplitude measured from the y = 0, amp is positive for "S" shape 
-  // Par[1]: inflexion point position, (what we are looking for) 
-  // Par[2]: steepness of the curve, (the smaller the steeper) 
+  // Par[0]: amplitude measured from the y = 0, amp is positive for "S" shape
+  // Par[1]: inflexion point position, (what we are looking for)
+  // Par[2]: steepness of the curve, (the smaller the steeper)
 
    double xx = x[0];
    double f = (par[0]/2)*TMath::Erf((xx-par[1])/par[2]) + TMath::Abs(par[0]/2);
    return f;
 }
-
 
 TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
   //[!] du = {DownStream,UpStream} = {0,1}  => sign={+,-}
@@ -629,16 +632,16 @@ TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
   //Set sign for Upstream by default, rmin, rmax are the same
   double sign = -1 ;
   // if downstream histo: change sign, swap rmin, rmax
-  if (du==0){ 
+  if (du==0){
       double rmincopy=rmin;
       sign = +1 ;
       rmin = -rmax;
       rmax = -rmincopy;
    }
 
-   double amp = sign*150 ; 
+   double amp = sign*150 ;
    double pos = -sign*0.8 ; // CHECK
-   double steepness = 0.03 ; 
+   double steepness = 0.03 ;
 
     TF1* fitFunction = new TF1("fitFunction", ErfFunction ,rmin, rmax, 3); // 3 in nb of param
 		fitFunction->SetParameters(amp,pos,steepness);
@@ -655,3 +658,45 @@ TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
  return fit;
 }
 
+TF1* FitPosition(TH1F* hist, TString pathToFittingBounds, int du, int detector, int strip){
+	ifstream inputFile;
+	inputFile.open(pathToFittingBounds);
+	while (!inputFile.eof()) {
+		int detectorNumber, stripNumber, directionIndicator;
+		double lowerBound, upperBound;
+		inputFile >> detectorNumber >> stripNumber >> directionIndicator >> lowerBound >> upperBound;
+		if (detectorNumber==detector && stripNumber==strip && directionIndicator==du) {
+			double rmin = lowerBound;
+			double rmax = upperBound;
+			//[!] du = {DownStream,UpStream} = {0,1}  => sign={+,-}
+  		hist->Rebin();
+  		//Set sign for Upstream by default, rmin, rmax are the same
+  		double sign = -1 ;
+  		// if downstream histo: change sign, swap rmin, rmax
+  		if (du==0){
+      	sign = +1 ;
+   		}
+   		double amp = sign*1000 ;
+   		double pos = -sign*0.8 ; // CHECK
+   		double steepness = 0.03 ;
+
+    	TF1* fitFunction = new TF1("fitFunction", ErfFunction ,rmin, rmax, 3); // 3 is number of parameters
+			fitFunction->SetParameters(amp,pos,steepness);
+			fitFunction->SetParNames("Amp","Pos","Steepness");
+			fitFunction->SetParLimits(0,0,amp*8);
+			//fitFunction->SetParLimits(1,pos-0.05,pos+0.05);
+			fitFunction->SetParLimits(2,0.001,steepness*3);
+			//fitFunction->FixParameter(2,steepness);
+
+			hist->Fit(fitFunction,"RM");
+    	hist->SetLineColor(8);
+    	TF1* fit = hist->GetFunction(fitFunction->GetName());
+
+ 			return fit;
+		}
+		else {
+			continue;
+		}
+	}
+	inputFile.close();
+}
