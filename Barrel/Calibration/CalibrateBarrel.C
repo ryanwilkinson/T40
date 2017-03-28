@@ -41,10 +41,9 @@ using namespace NPUNITS;
 
 using namespace::std;
 
-// const
-const double striphalflength = 48.4;
-
 //global variables
+int gStripNumber ;
+int gDetectorNumber  ;
 vector <double> gDataSum1,gDataSumerr1,gDataSum2,gDataSumerr2,gDataSum3,gDataSumerr3,gSlicePos,gZeroVector;
 double gPos[2]; // [0] ->downstream strip position; [1] -> Upstream strip position
 const double* gFinalCalParam;
@@ -109,8 +108,8 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
   fileToCalibrate->cd();
 
 
-  for (int detector=1; detector<=8; detector++){
-
+  for (int detector=1; detector<=8; detector++){   
+    gDetectorNumber = detector;
     TString name = Form("Barrel%d",detector);
     can[detector-1] = new TCanvas(name,name,650,650);
     can[detector-1]->Divide(2,2); // splits each canvas into 4; one for each strip in a detector
@@ -119,7 +118,10 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
 		canpos[detector-1]->Divide(4,2); // splits each canvas into 8; 2 for each strip in a detector
 
     for (int strip=1; strip<=4; strip++){
-			if ((detector==1 && strip==3) || (detector==3) || (detector==5 && strip==1) || (detector==5 && strip==3) || (detector==6 && strip==2) || (detector==7 && strip==3)) {
+      gStripNumber = strip ;
+			if ((detector==1 && strip==3) || (detector==3) || 
+			    (detector==5 && strip==1) || (detector==5 && strip==3) || 
+			    (detector==6 && strip==2) || (detector==7 && strip==3)) {
 				cout << "Detector " << detector << " and Strip " << strip << " is a broken channel. Skipping..." << endl;
 				continue;
 			}
@@ -547,11 +549,27 @@ void ClearGlobalParameters(void){
 }
 /*****************************************************************************************************************/
 double PosToAngle(double pos){
+	// All in mm 
+  double INNERBARREL_PCB_Width  = 27.76;
+  double INNERBARREL_ActiveWafer_Length = 94.80; 
+  double INNERBARREL_ActiveWafer_Width = 24.0;
+  double StripPitch = INNERBARREL_ActiveWafer_Width/4.0;
+  
   // recaluculate the new length and the shift
   double k = (gPos[1] - gPos[0])/2;
   double d = (gPos[1] + gPos[0])/2;
-	double x = striphalflength * ((pos-d)/k); // in mm
-	return TMath::ATan(x/33.5093); // is the distance from beam spot  (supposed at the center to the strip at 90 degree)
+  //Calculate the hit position as if it hits detector 3 (at 12 o'clock i.e. perpendiculart on the positive y-axis)
+  double Z = (0.5*INNERBARREL_ActiveWafer_Length) * ((pos-d)/k); 
+  double Y = INNERBARREL_PCB_Width*(0.5+sin(45*deg));
+  double X = (gStripNumber*StripPitch-0.5*INNERBARREL_ActiveWafer_Width)-(0.5*StripPitch);
+  TVector3 HitPOS(X,Y,-Z);        // since RowPos = (U-D)/(U+D) => Downstream hit (i.e. Z>0) has RowPos<0, thus the sign
+  TVector3 NormalOnDet(0,1,0);    // initiate with the normal on detector 3 at 12 o'clock (positive y-axis)
+  
+  //Rotate both vectors : Irrelevant, unless the source is not centered, so we will keep it 
+  HitPOS.RotateZ((5-gDetectorNumber)*45*deg);// looking downstream Detector 1 is at 3 o'clock (negative x-axis)
+  NormalOnDet.RotateZ((5-gDetectorNumber)*45*deg);
+  
+  return( HitPOS.Angle(NormalOnDet) ) ;
 }
 /*****************************************************************************************************************/
 double ApplyCalibration(double Uch, double Dch){
