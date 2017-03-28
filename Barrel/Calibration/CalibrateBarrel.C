@@ -50,6 +50,8 @@ double gPos[2]; // [0] ->downstream strip position; [1] -> Upstream strip positi
 const double* gFinalCalParam;
 const double* gFinalCalParamError;
 NPL::EnergyLoss* gELossAlphaInSi ;
+TH1F* gDownstreamOffset = new TH1F("DownstreamOffset","DownstreamOffset",200,-50,+50); // keV
+TH1F* gUpstreamOffset = new TH1F("UpstreamOffset","UpstreamOffset",200,-50,+50); // keV
 
 //functions
 TH2D* FindHistogram(TString histname, TString filename); // finds a histogram "histname" in file "filename"
@@ -90,7 +92,7 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
   outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
   TCanvas* canpos[8]; // initialises 8 canvases; 1 for each Barrel detector element, used for position fit
-  
+    
   TFile* fileToCalibrate;
   if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
 	cout << " XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX "<<endl;
@@ -133,13 +135,13 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
 		      //FitWindow(TH1F* hist, du, rmin, rmax); // this will give rmin and rmax CHECK!
 		      TF1* fitfunc = FitPosition(currentHistPos, du, rmin, rmax);
           currentHistPos->Draw(); //Draw for inspection
-          gPos[du] = fitfunc->GetParameter(1); // fill in the golbal variable
+          gPos[du] = fitfunc->GetParameter(1); // fill in the global variable
           //cout << du << " " << gPos[du] << endl ; 
 				}
 				else { // for when there is no histogram currentHistPos or if currentHistPos is empty
 				  double kdummy; 
           if (du==0) kdummy = -0.71; // default value
-          else kdummy =+0.71; 
+          else kdummy = +0.71; 
           gPos[du]=kdummy; 
         }
       }
@@ -152,19 +154,23 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
 	    hname = Form("TIARABARREL_B%d_PE%d_E",detector,strip); // histograms of (Upstream-Downstream)/(Upstream+Downstream) vs Upstream+Downstream
 	    TH2D* h2 = FindHistogram(hname, plotsFileName);
       can[detector-1]->cd(strip);
+      int result = 0 ; 
       if (h2 && h2->Integral()) {
         cout << " Working on " << hname << endl;
 	      SliceHistogram(h2,10,gPos[0],gPos[1],600,1100); // slice between -0.67 and 0.67 with a step of 10 bins
-		    int result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
+		    result = Minimise(); // performs the numerical minimisation and saves the final calibration values into global variable gFinalCalParam and gFinalCalParamError
+		    }
+		    
+		  if(result==1){  
         ShowControl2DSpectra(h2,can[detector-1],strip);
         double BDtune=1; // this variable allows one to change the degree of the ballistic deficit (BD) if necessary
 	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E " << gFinalCalParam[1] << " " << gFinalCalParam[0] << endl; // calibration coefficients and nptool tokens
 		    outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E " << gFinalCalParam[3] << " " << gFinalCalParam[2] << endl;
-		    if(-gFinalCalParam[4]<0) { // BD should be positive
+		    if(-gFinalCalParam[4]<0) { // BD = (-gFinalCalParam[4]) should be positive
           cout << " WARNING: Ballistic deficit is negative, replacing by value zero "<<endl;
 		      BDtune=0;
 		    }
-        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC " << 0 << " " << 0 << " " << -gFinalCalParam[4]*BDtune << endl;
+        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC "<<0<< " " <<0<< " " << -gFinalCalParam[4]*BDtune << endl;
         //ShowCalibration(detector, strip)->Draw(); // on separate graph
       }
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
@@ -174,10 +180,21 @@ void CalibrateBarrel(TString tripleAlphaFileName/*to avoid conflict input the fi
       }
       
     } //strip
-    
+   
   canpos[detector-1]->Draw();
   } //detector
+  
   outputFile.close();
+  
+  //offset check; useful for dead zone determination
+  TCanvas* canoffset= new TCanvas("offset","offset",650,650);
+  canoffset->Divide(1,2);
+  canoffset->cd(1);
+  gDownstreamOffset->Draw();
+  canoffset->cd(2);
+  gUpstreamOffset->Draw();
+  canoffset->Draw();
+  
   cout << "...done!" << endl;
 
 }
@@ -371,7 +388,7 @@ int Minimise(void){
 
 	ROOT::Math::Functor f(&GetChiSquared,5);
 	double step[5] = {0.01,0.1,0.01,0.1,0.0001};
-	double variable[5] = {6.5, -300, 6.5, -300, 0.01}; // change the other set
+	double variable[5] = {6.5, 0, 6.5, 0, 0.05}; // change the other set
 	// parameters: upstream gain, upstream offset, downstream gain, downstream offset, quadratic BD term, linear BD term, constant BD term
 	min->SetFunction(f);
 	// Set the free variables to be minimized
@@ -387,12 +404,23 @@ int Minimise(void){
 	//min->FixVariable(2);
 	//min->FixVariable(1);
 	//min->FixVariable(3);
-	min->Minimize();
+	
+	double minfail[5] = {0, -100, 0, -100, 0}; // default
+	gFinalCalParam= minfail; // change the other set;
+  gFinalCalParamError = minfail;
+  
+  int result = min->Minimize();
+  //cout << " result  " << result << endl;
+  //cin.get(); 
+  if (result){
+    gFinalCalParam = min->X();
+    gFinalCalParamError = min->Errors();
+    
+    gDownstreamOffset->Fill(gFinalCalParam[3]);
+    gUpstreamOffset->Fill(gFinalCalParam[1]);
+  }
 
-  //gFinalCalParam = variable ;
-  gFinalCalParam = min->X();
-  gFinalCalParamError = min->Errors();
-  return 0;
+  return result;
 }
 /*****************************************************************************************************************/
 double GetChiSquared(const double parameters[]){
@@ -435,13 +463,13 @@ vector<double> CalculateEnergySum(const double parameters[], vector<double> p, d
 	vector<double> calSum;
 
   for (unsigned int i = 0 ; i < p.size() ; i++){
-	  // pass from x and y to SUM=x+y and POS=(y-x)
+	  // pass from x and y to SUM=x+y and POS=(y-x)/SUM
 	  // where y: U = 0.5*SUM*(1+POS)   x: D = 0.5*SUM*(1-POS)
     double k = (gPos[1] - gPos[0])/2;
     double d = (gPos[1] + gPos[0])/2;
 
     double angle = PosToAngle(p[i]);
-    double slow = gELossAlphaInSi->Slow(energy*keV,1*micrometer,angle)/keV;
+    double slow = gELossAlphaInSi->Slow(energy*keV,(0.3)*micrometer,angle)/keV;
 	  double s = slow/( 1 - parameters[4]*(k*k-pow(p[i]-d,2)) ) - parameters[1] - parameters[3]; // the ballistic deficit is subtracted here, this should lead to BD>0
 	  s = 2*s/(p[i]*(parameters[0]-parameters[2]) + parameters[0] + parameters[2] );
 	  calSum.push_back(s);
@@ -522,7 +550,7 @@ double PosToAngle(double pos){
   double k = (gPos[1] - gPos[0])/2;
   double d = (gPos[1] + gPos[0])/2;
 	double x = striphalflength * ((pos-d)/k); // in mm
-	return TMath::ATan(x/33); // 33 mm is the distance from beam spot  (supposed at the center to the strip at 90 degree)
+	return TMath::ATan(x/33.5093); // is the distance from beam spot  (supposed at the center to the strip at 90 degree)
 }
 /*****************************************************************************************************************/
 double ApplyCalibration(double Uch, double Dch){
@@ -532,7 +560,7 @@ double ApplyCalibration(double Uch, double Dch){
 	double pos = (Uch-Dch)/(Dch+Uch);
 	double U = Uch*gFinalCalParam[0]+ gFinalCalParam[1];
 	double D = Dch*gFinalCalParam[2]+ gFinalCalParam[3];
-	return (U+D)*( 1-gFinalCalParam[4]*(k*k-pow(pos-d,2)) );  // the BD<0 thus the negative sugn adds it here!
+	return (U+D)*( 1 + (-gFinalCalParam[4])*(k*k-pow(pos-d,2)) );  // the BD<0 thus the negative sugn adds it here!
 }
 /*****************************************************************************************************************/
 TCanvas* ShowCalibration(int det, int strip){
@@ -595,7 +623,6 @@ double fUpstream_E(double energy, unsigned short side, unsigned short strip){
   name+= "_UPSTREAM" ;
   name+= NPL::itoa( strip ) ;
   name+= "_MATCHSTICK";
-
   return CalibrationManager::getInstance()->ApplyCalibration(name,
       energy );
 }
@@ -645,7 +672,7 @@ TF1* FitPosition(TH1F* hist, int du, double rmin, double rmax){
 		fitFunction->SetParNames("Amp","Pos","Steepness");
 		fitFunction->SetParLimits(0,0,amp*2);
 		fitFunction->SetParLimits(1,pos-0.1,pos+0.1);
-		fitFunction->SetParLimits(2,0.001,steepness*3);
+		fitFunction->SetParLimits(2,0.001,steepness*10);
 		//fitFunction->FixParameter(2,steepness);
 
 		hist->Fit(fitFunction,"RM");
