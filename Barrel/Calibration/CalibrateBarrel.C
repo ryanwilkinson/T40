@@ -73,12 +73,12 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/T40/calibration/calibrationData/postEXPT5/ER1.root",
-					           TString pathToMatchsticks="/home/rw00227/nptool/Projects/T40/calibration/Matchsticks_Calib.txt",
-									 	 TString pathToFittingBounds="/home/rw00227/nptool/Projects/T40/calibration/FittingBounds.txt"){
+void CalibrateBarrel(TString tripleAlphaFileName="./ER1.root",
+					           TString pathToMatchsticks="./Matchsticks_Calib.txt",
+									 	 TString pathToFittingBounds="./FittingBounds.txt"){
 
   //generate the outputFileName
-  TString plotsFileName="/home/rw00227/nptool/Projects/T40/calibration/ER1_inspectBarrelHisto.root";
+  TString plotsFileName="./ER192_inspectBarrelHisto.root";
 
   //global variable
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);
@@ -86,7 +86,7 @@ void CalibrateBarrel(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/
   //local variable
   TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
   CalibfName.ReplaceAll("root","txt");
-  CalibfName = "./calibration/Barrel_Calib_"+CalibfName;
+  CalibfName = "./Barrel_Calib_"+CalibfName;
   ofstream outputFile;
 	outputFile.open(CalibfName.Data());
   TCanvas* can[8]; // initialises 8 canvases; 1 for each Barrel detector element
@@ -118,9 +118,12 @@ void CalibrateBarrel(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/
 
     for (int strip=1; strip<=4; strip++){
       gStripNumber = strip ;
-			if ((detector==1 && strip==3) || (detector==3) ||
+		if ((detector==2 && strip==4) || (detector==4 && strip ==2)|| (detector==4 && strip ==3) || (detector== 7 && strip ==1) || (detector== 7 && strip ==3) || (detector== 7 && strip ==4) || (detector== 8)
+
+
+/*|| (detector==3) ||
 			    (detector==5 && strip==1) || (detector==5 && strip==3) ||
-			    (detector==6 && strip==2) || (detector==7 && strip==3)) {
+			    (detector==6 && strip==2) || (detector==7 && strip==3)*/) {
 				cout << "Detector " << detector << " and Strip " << strip << " is a broken channel. Skipping..." << endl;
 				continue;
 			}
@@ -177,7 +180,7 @@ void CalibrateBarrel(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/
       else { // for when there is no histogram h2 or if h2 is empty - nptool tokens with default calibration parameters
 	      outputFile << "TIARABARREL_B" << detector << "_UPSTREAM" << strip << "_E 0 0 " << endl;
 	      outputFile << "TIARABARREL_B" << detector << "_DOWNSTREAM" << strip << "_E 0 0 " << endl;
-        outputFile << "TIARABARREL_BALLISTIC_B" << detector << "_STRIP" << strip << " 0 0 0 " << endl;
+        outputFile << "TIARABARREL_B" << detector << "_STRIP" << strip << "_BALLISTIC 0 0 0 " << endl;
       }
 
     } //strip
