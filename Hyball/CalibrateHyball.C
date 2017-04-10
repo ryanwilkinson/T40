@@ -1,6 +1,8 @@
 //c++
 #include <iostream>
 #include <fstream>
+#include <cmath>
+#include <math.h>
 
 using namespace std;
 
@@ -9,6 +11,7 @@ using namespace std;
 #include "TTree.h"
 #include "TH1F.h"
 #include "TSystem.h"
+#include "TMath.h"
 
 //NPTool
 #include "TTiaraHyballData.h"
@@ -23,26 +26,25 @@ double fRing_E(double energy, unsigned short wedge, unsigned short ring);
 double fSector_E(double energy, unsigned short wedge, unsigned short sector);
 
 
-void CalibrateHyball(TString pathToFile/*to avoid conflict input the file name in the terminal*/,
-					 TString pathToMatchsticks="../../T40/Matchsticks/Files/Matchsticks_Calib_dummy.txt"){
+void CalibrateHyball(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/T40/calibration/calibrationData/postEXPT5/ER1.root",
+					           TString pathToMatchsticks="/home/rw00227/nptool/Projects/T40/calibration/Matchsticks_Calib.txt"){
 
 //generate the outputFileName
-TString plotsFileName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
-plotsFileName = "inspect_"+plotsFileName;
+TString plotsFileName="/home/rw00227/nptool/Projects/T40/calibration/ER1_inspectHyballHisto.root";
 
-//define dead layer in micrometer for SimpleCalibration method, 
+//define dead layer in micrometer for SimpleCalibration method,
 // in this case the return "value" is the distance from the pedestal
-double deadLayer = 0.7*micrometer;
-//define number of iteration for the alternative ZeroExtrapolation method, 
+double deadLayer, HyballOuterRadius = 135.1 /* mm */, HyballInnerRadius = 32.6 /* mm */, SourceToHyballDistance = 147 /* mm */, NumberOfStrips = 16;
+//define number of iteration for the alternative ZeroExtrapolation method,
 // in this case the return "value" is the calculated effective dead layer thickness
 unsigned int max_iteration = 1000; // default in nptool is 10000
 
 //initiate output variables
-vector < vector<double> > coeff; 
+vector < vector<double> > coeff;
 vector < TString > nptToken; // calibration token name in NPTool
 vector < TString > badchannels; //channels with bad data
 
-//Nptool data 
+//Nptool data
 TTiaraHyballData* hyballData = new TTiaraHyballData ;
 TFile* fileToCalibrate;
 
@@ -54,7 +56,7 @@ int lowerbound, upperbound, nobins;
 
 //initiate list of Histograms
 TH1F* hyballRing[6][16];
-TH1F* hyballSector[6][8]; 
+TH1F* hyballSector[6][8];
 TString nameTitle; // same as NPTool calibration token
 for (int iWedge =0; iWedge<6 ; iWedge++) {
 	for(int iRing=0 ; iRing<16 ; iRing++){
@@ -90,18 +92,18 @@ hyballEnergyOffsetSector->GetXaxis()->SetTitle("MeV");
   Cal->LoadParameterFromFile();
 
 //initiate the source, calibrator etc...
-NPL::CalibrationSource* alphaSource = new NPL::CalibrationSource(); 
+NPL::CalibrationSource* alphaSource = new NPL::CalibrationSource();
 alphaSource->Set_ThreeAlphaSource();
-NPL::SiliconCalibrator* calibrator = new NPL::SiliconCalibrator(); 
+NPL::SiliconCalibrator* calibrator = new NPL::SiliconCalibrator();
 NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // need to be changed for 4He
 
   if(gSystem->AccessPathName(plotsFileName)){ //checks if the file exist already, condition is "true" if not
     cout << "No file to calibrate found - creating one now using triple alpha spectra..." << endl;
 	//Open TFile
-	TFile* nptDataFile = new TFile(pathToFile.Data(),"READ");
+	TFile* nptDataFile = new TFile(tripleAlphaFileName.Data(),"READ");
 	 if (nptDataFile == 0) {
 		  // if we cannot open the file, print an error message and return immediatly
-		  printf("Error: cannot open this file: %s \n",pathToFile.Data());
+		  printf("Error: cannot open this file: %s \n",tripleAlphaFileName.Data());
 		  return;
 	   }
 	nptDataFile->ls();
@@ -117,7 +119,7 @@ NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // n
 	//Loop on tree and fill the histograms
 	int entries = tree->GetEntries();
 	//entries = 1000000;
-	cout << " INFO: Number of entries in tree: " << entries << endl;  
+	cout << " INFO: Number of entries in tree: " << entries << endl;
 	for(int i = 0 ; i < entries; i++) {
 	  if (i%(entries/100)) printf("\r treated %2.f percent ",100.0*i/entries);
 	  tree->GetEntry(i);
@@ -129,7 +131,7 @@ NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // n
 		if( wedge>0 && ring>0 && energy>lowerbound && energy<upperbound){
 	    	double linenergy = fRing_E(energy,wedge,ring);
 			hyballRing[wedge-1][ring-1]->Fill(linenergy);
-			//cout << wedge << " " <<  ring << " " << energy << " " << linenergy <<  endl ; 
+			//cout << wedge << " " <<  ring << " " << energy << " " << linenergy <<  endl ;
 		}
 	  }
 	  unsigned int sizeSectorE = hyballData->GetSectorEMult();
@@ -140,13 +142,13 @@ NPL::EnergyLoss* ELossAlpha = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",10); // n
 		if(wedge>0 && sector>0 && energy>lowerbound && energy<upperbound ){
 	    	double linenergy = fSector_E(energy,wedge,sector);
 			hyballSector[wedge-1][sector-1]->Fill(linenergy);
-			//cout << wedge << " " <<  sector << " " << energy << endl ; 
+			//cout << wedge << " " <<  sector << " " << energy << endl ;
 		}
 	  }
 	}// end loop on tree
 	nptDataFile->Close();
 
-	//Write all the data in the file 
+	//Write all the data in the file
     fileToCalibrate = new TFile(plotsFileName,"RECREATE");
 	fileToCalibrate->cd();
 	for (int iWedge =0; iWedge<6 ; iWedge++) {
@@ -183,14 +185,30 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		if (currentHist->GetEntries()>100){
 			TString pToken = Form("TIARAHYBALL/D%d_STRIP_RING%d_MATCHSTICK",iWedge+1,iRing+1); // Matchstick token
 			double pedestal = Cal->GetPedestal(pToken.Data());
+
+			// various cout statements below used for debugging
+			cout << "\nDetector number: " << iWedge+1 << endl;
+			cout << "Ring number: " << iRing+1 << endl;
+			deadLayer = 0.59*micrometer;
+			cout << "dead layer = " << deadLayer << endl;
+			cout << "ring number = " << iRing+1 << endl;
+			double heightOfStrip = HyballInnerRadius+((iRing+0.5)*((HyballOuterRadius-HyballInnerRadius)/NumberOfStrips));
+			cout << "height of strip = " << heightOfStrip << endl;
+			double theta = atan(heightOfStrip/SourceToHyballDistance);
+			cout << "theta = " << theta << " radians, which in degrees is: " << theta*(180/M_PI) << endl;
+			deadLayer = deadLayer/(cos(theta));
+			cout << "new dead layer = " << deadLayer << endl;
+
 			/*double value = calibrator->ZeroExtrapolation(
-				currentHist,alphaSource, ELossAlpha, 
+				currentHist,alphaSource, ELossAlpha,
 				coeffset, pedestal, max_iteration,lowerbound,upperbound);*/
-			double value = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, deadLayer, lowerbound,upperbound);
-			//cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; //used for debugging
+			double value = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, deadLayer, lowerbound, upperbound);
+			double value2 = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, /* dead layer at 0 degrees */ 0.59*micrometer, lowerbound, upperbound); // used for debugging
+			cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; //used for debugging
+			cout << "value using dead layer at zero degrees = " << value2 << endl;
 			if (value>=0){
-                currentHist->Write("",TObject::kOverwrite);  
-				coeff.push_back(coeffset); 
+                currentHist->Write("",TObject::kOverwrite);
+				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 			     //cout << "gain (must be >=0 for non-zero calibration parameters) is " << coeffset[1] << endl; //used for debugging
 				if(coeffset[1]>0) hyballEnergyOffsetRing->Fill(coeffset[0]);
@@ -201,14 +219,14 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
                 badchannels.push_back(nameTitle);
 				if (coeffset[1]==-1){
 					coeffset[1]=0;
-					}			
+					}
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
 				}
 			}
 		else {
                 badchannels.push_back(nameTitle);
-			coeffset.push_back(0); coeffset.push_back(0);			
+			coeffset.push_back(0); coeffset.push_back(0);
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
 			}
@@ -226,13 +244,13 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 			TString pToken = Form("TIARAHYBALL/D%d_STRIP_SECTOR%d_MATCHSTICK",iWedge+1,iSector+1);
 			double pedestal = Cal->GetPedestal(pToken.Data());
 			/*double value = calibrator->ZeroExtrapolation(
-				currentHist, alphaSource, ELossAlpha, 
+				currentHist, alphaSource, ELossAlpha,
 				coeffset, pedestal, max_iteration,lowerbound,upperbound);*/
 			double value = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, deadLayer, lowerbound, upperbound);
 			cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; // used for debugging
 			if (value>=0){
-                currentHist->Write("",TObject::kOverwrite);  
-				coeff.push_back(coeffset); 
+                currentHist->Write("",TObject::kOverwrite);
+				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 			    cout << "gain (must be >=0 for non-zero calibration parameters) is " << coeffset[1] << endl; //used for debugging
 				if(coeffset[1]>0) hyballEnergyOffsetSector->Fill(coeffset[0]);
@@ -243,13 +261,13 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
                 badchannels.push_back(nameTitle);
 				if (coeffset[1]==-1){
 					coeffset[1]=0;
-					}			
+					}
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle);
 				}
 			}
 		else {
-			coeffset.push_back(0); coeffset.push_back(0);			
+			coeffset.push_back(0); coeffset.push_back(0);
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
 			}
@@ -271,10 +289,10 @@ hyballEnergyOffsetSector->Write("",TObject::kOverwrite);
 
 fileToCalibrate->Close();
 
-//write in a text file 
-  TString CalibfName( pathToFile( pathToFile.Last('/')+1, pathToFile.Length() ) );
+//write in a text file
+  TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
   CalibfName.ReplaceAll("root","txt");
-  CalibfName = "Hyball_Calib_"+CalibfName;
+  CalibfName = "./calibration/Hyball_Calib_"+CalibfName;
   ofstream myfile;
   myfile.open (CalibfName.Data());
 	for(unsigned int i = 0 ; i < coeff.size() ; i++){
@@ -305,4 +323,3 @@ fileToCalibrate->Close();
     name+= "_MATCHSTICK";
     return CalibrationManager::getInstance()->ApplyCalibration(name , energy );
   }
-
