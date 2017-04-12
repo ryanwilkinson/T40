@@ -24,17 +24,18 @@ using namespace std;
 //functions
 double fRing_E(double energy, unsigned short wedge, unsigned short ring);
 double fSector_E(double energy, unsigned short wedge, unsigned short sector);
-
+double GetAngle(int ring); // returns angle in radian
 
 void CalibrateHyball(TString tripleAlphaFileName="/home/rw00227/nptool/Projects/T40/calibration/calibrationData/postEXPT5/ER1.root",
 					           TString pathToMatchsticks="/home/rw00227/nptool/Projects/T40/calibration/Matchsticks_Calib.txt"){
 
 //generate the outputFileName
-TString plotsFileName="/home/rw00227/nptool/Projects/T40/calibration/ER1_inspectHyballHisto.root";
+TString plotsFileName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
+plotsFileName= "inspect_"+plotsFileName;
 
 //define dead layer in micrometer for SimpleCalibration method,
 // in this case the return "value" is the distance from the pedestal
-double deadLayer, HyballOuterRadius = 135.1 /* mm */, HyballInnerRadius = 32.6 /* mm */, SourceToHyballDistance = 147 /* mm */, NumberOfStrips = 16;
+double deadLayer = 0.61*micrometer ; 
 //define number of iteration for the alternative ZeroExtrapolation method,
 // in this case the return "value" is the calculated effective dead layer thickness
 unsigned int max_iteration = 1000; // default in nptool is 10000
@@ -177,7 +178,7 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 //rings
 	for(int iRing=0 ; iRing<16 ; iRing++){
 		coeffset.clear();
-        currentHist = NULL;
+    currentHist = NULL;
 		nameTitle =Form("TIARAHYBALL_D%d_STRIP_RING%d_E",iWedge+1,iRing+1);
 		currentHist = (TH1F*) fileToCalibrate->Get(nameTitle.Data());
 		currentHist->SetName(nameTitle+"_fit");
@@ -185,38 +186,33 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		if (currentHist->GetEntries()>100){
 			TString pToken = Form("TIARAHYBALL/D%d_STRIP_RING%d_MATCHSTICK",iWedge+1,iRing+1); // Matchstick token
 			double pedestal = Cal->GetPedestal(pToken.Data());
-
-			// various cout statements below used for debugging
-			cout << "\nDetector number: " << iWedge+1 << endl;
-			cout << "Ring number: " << iRing+1 << endl;
-			deadLayer = 0.59*micrometer;
-			cout << "dead layer = " << deadLayer << endl;
-			cout << "ring number = " << iRing+1 << endl;
-			double heightOfStrip = HyballInnerRadius+((iRing+0.5)*((HyballOuterRadius-HyballInnerRadius)/NumberOfStrips));
-			cout << "height of strip = " << heightOfStrip << endl;
-			double theta = atan(heightOfStrip/SourceToHyballDistance);
-			cout << "theta = " << theta << " radians, which in degrees is: " << theta*(180/M_PI) << endl;
-			deadLayer = deadLayer/(cos(theta));
-			cout << "new dead layer = " << deadLayer << endl;
-
+      double theta = GetAngle(iRing);
+			//cout << "new dead layer = " << deadLayer/(cos(theta))/micrometer << endl;
 			/*double value = calibrator->ZeroExtrapolation(
 				currentHist,alphaSource, ELossAlpha,
 				coeffset, pedestal, max_iteration,lowerbound,upperbound);*/
-			double value = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, deadLayer, lowerbound, upperbound);
-			double value2 = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, /* dead layer at 0 degrees */ 0.59*micrometer, lowerbound, upperbound); // used for debugging
+
+			double value = calibrator->SimpleCalibration(currentHist, alphaSource, 
+			ELossAlpha, coeffset, deadLayer/(cos(theta)), lowerbound, upperbound);
+			/*cout << "\n ------- " <<  theta*TMath::RadToDeg() << " \n" ; 
+        cout << ELossAlpha->EnergyLossCalulation(5.15659,deadLayer,theta)<< " ";	
+        cout << ELossAlpha->EnergyLossCalulation(5.48556,deadLayer,theta)<< " ";	
+        cout << ELossAlpha->EnergyLossCalulation(5.80477,deadLayer,theta)<< " \n";
+        cin.get();
+      */	
 			cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; //used for debugging
-			cout << "value using dead layer at zero degrees = " << value2 << endl;
+			//cout << "value using dead layer at zero degrees = " << value2 << endl;
 			if (value>=0){
-                currentHist->Write("",TObject::kOverwrite);
+                currentHist->Write(currentHist->GetName(),TObject::kOverwrite);
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 			     //cout << "gain (must be >=0 for non-zero calibration parameters) is " << coeffset[1] << endl; //used for debugging
 				if(coeffset[1]>0) hyballEnergyOffsetRing->Fill(coeffset[0]);
 				}
 			else {
-                //error code for not enough peaks in spectra
-                //push channel name to vector for outputting to screen
-                badchannels.push_back(nameTitle);
+            //error code for not enough peaks in spectra
+            //push channel name to vector for outputting to screen
+            badchannels.push_back(nameTitle);
 				if (coeffset[1]==-1){
 					coeffset[1]=0;
 					}
@@ -225,7 +221,7 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 				}
 			}
 		else {
-                badchannels.push_back(nameTitle);
+      badchannels.push_back(nameTitle);
 			coeffset.push_back(0); coeffset.push_back(0);
 			coeff.push_back(coeffset);
 			nptToken.push_back(nameTitle);
@@ -249,7 +245,7 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 			double value = calibrator->SimpleCalibration(currentHist, alphaSource, ELossAlpha, coeffset, deadLayer, lowerbound, upperbound);
 			cout << "value (must be >=0 for non-zero calibration parameters) is " << value << endl; // used for debugging
 			if (value>=0){
-                currentHist->Write("",TObject::kOverwrite);
+                currentHist->Write(currentHist->GetName(),TObject::kOverwrite);
 				coeff.push_back(coeffset);
 				nptToken.push_back(nameTitle); // strip's token name in NPTool
 			    cout << "gain (must be >=0 for non-zero calibration parameters) is " << coeffset[1] << endl; //used for debugging
@@ -274,8 +270,8 @@ for (int iWedge =0; iWedge<6 ; iWedge++) {
 		}
 	}
 
-hyballEnergyOffsetRing->Write("",TObject::kOverwrite);
-hyballEnergyOffsetSector->Write("",TObject::kOverwrite);
+hyballEnergyOffsetRing->Write(hyballEnergyOffsetRing->GetName(),TObject::kOverwrite);
+hyballEnergyOffsetSector->Write(hyballEnergyOffsetSector->GetName(),TObject::kOverwrite);
 
     //Print to screen any channels with bad spectra
     if(badchannels.size() > 0){
@@ -292,7 +288,7 @@ fileToCalibrate->Close();
 //write in a text file
   TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
   CalibfName.ReplaceAll("root","txt");
-  CalibfName = "./calibration/Hyball_Calib_"+CalibfName;
+  CalibfName = "./Hyball_Calib_"+CalibfName;
   ofstream myfile;
   myfile.open (CalibfName.Data());
 	for(unsigned int i = 0 ; i < coeff.size() ; i++){
@@ -323,3 +319,23 @@ fileToCalibrate->Close();
     name+= "_MATCHSTICK";
     return CalibrationManager::getInstance()->ApplyCalibration(name , energy );
   }
+  
+  
+  double GetAngle(int ring){
+  
+    double HyballOuterRadius = 135.1 /* mm */;
+    double HyballInnerRadius = 32.6 /* mm */; 
+    double SourceToHyballDistance = 147 /* mm */; 
+    int NumberOfStrips = 16;
+    double pitch = (HyballOuterRadius-HyballInnerRadius)/NumberOfStrips ; 
+    
+    // various cout statements below used for debugging
+    //cout << "Ring number: " << ring << endl;
+    double heightOfStrip = HyballInnerRadius+((ring+0.5)*pitch);
+    //cout << "height of strip = " << heightOfStrip << endl;
+    double theta = atan(heightOfStrip/SourceToHyballDistance);
+    //cout << "theta = " << theta << " radians, which in degrees is: " << theta*(180/M_PI) << endl;
+    
+    return theta;
+	}
+			
