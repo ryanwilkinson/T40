@@ -473,6 +473,7 @@ vector<double> CalculateEnergySum(const double parameters[], vector<double> p, d
 
     double angle = PosToAngle(p[i]);
     double slow = gELossAlphaInSi->Slow(energy*keV,(0.3)*micrometer,angle)/keV;
+    cout << energy << " " << slow << " " << angle/deg << endl ; 
 	  double s = slow/( 1 - parameters[4]*(k*k-pow(p[i]-d,2)) ) - parameters[1] - parameters[3]; // the ballistic deficit is subtracted here, this should lead to BD>0
 	  s = 2*s/(p[i]*(parameters[0]-parameters[2]) + parameters[0] + parameters[2] );
 	  calSum.push_back(s);
@@ -543,7 +544,8 @@ void ClearGlobalParameters(void){
 	gDataSumerr3.clear();
 	gSlicePos.clear();
 	gZeroVector.clear();
-
+  gPos[0]=0;
+  gPos[1]=0;
 	gFinalCalParam=NULL;
 	gFinalCalParamError=NULL;
 }
@@ -566,8 +568,8 @@ double PosToAngle(double pos){
   TVector3 NormalOnDet(0,1,0);    // initiate with the normal on detector 3 at 12 o'clock (positive y-axis)
   
   //Rotate both vectors : Irrelevant, unless the source is not centered, so we will keep it 
-  HitPOS.RotateZ((5-gDetectorNumber)*45*deg);// looking downstream Detector 1 is at 3 o'clock (negative x-axis)
-  NormalOnDet.RotateZ((5-gDetectorNumber)*45*deg);
+  HitPOS.RotateZ((3-gDetectorNumber)*45*deg);// looking downstream Detector 1 is at 3 o'clock (negative x-axis)
+  NormalOnDet.RotateZ((3-gDetectorNumber)*45*deg);
   
   return( HitPOS.Angle(NormalOnDet) ) ;
 }
