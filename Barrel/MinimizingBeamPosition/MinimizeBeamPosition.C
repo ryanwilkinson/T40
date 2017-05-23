@@ -126,15 +126,16 @@ TVector3 GetNormalOnDetector(double hyperstrip);
 TVector3 GetPointOnStrip(double hyperstrip, double pos=0); // pos = [-1;+1]
 
 // MAIN
-void MinimizeBeamPosition(double Angle=-1, TString data="BarrelAngles_Mg25.txt"){
+void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg25.txt"){
 
   if(Angle==-1) {
     cout << " ERROR ---- Provide Angle ! ----- "<< endl; 
-    cout << "execute:\n .x MinimizeBeamPosition.C++( <angle-degree>, <input-ascii-file> ) "<< endl; 
+    cout << " To execute:\n\n .x MinimizeBeamPosition.C++( <angle-degree>, <input-ascii-file> ) \n"<< endl; 
     exit(-1); 
   }
   else {
-    cout << " Angle provided " << Angle << endl;
+    cout << " Angle provided: " << Angle << endl;
+    cout << "  File provided: " << data << endl;
     }
   
   gAngle = Angle*TMath::DegToRad();
@@ -306,7 +307,7 @@ double GetChiSquare(const double parameters[]){
   }
   ChiSquare = ChiSquare/(gHyperStrip.size()-3); // 3 is the parameters size 
   
-  cout << "   Chi2 is " << ChiSquare << endl; // used for testing
+  //cout << "   Chi2 is " << ChiSquare << endl; // used for testing
   
   return ChiSquare;
 }
