@@ -124,7 +124,6 @@ double GetParticleAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate a
 double GetParticlePhiAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate angle from position assuming beam spot
 TVector3 GetNormalOnDetector(double hyperstrip);
 TVector3 GetPointOnStrip(double hyperstrip, double pos=0); // pos = [-1;+1]
-void ClearData(void); // Clear the data before iteration
 
 // MAIN
 void MinimizeBeamPosition(double Angle=-1, TString data="BarrelAngles_Mg25.txt"){
@@ -374,26 +373,6 @@ TVector3 GetLinePlaneIntersect(clsLine3D* line, clsPlane3D* plane){
 return (line->GetPoint(t));
 }
 
-
-void ClearData(void){
-
-
-}
-
-
-
-/*
-Bank 
-
-
-
-  TString CalibfName( tripleAlphaFileName( tripleAlphaFileName.Last('/')+1, tripleAlphaFileName.Length() ) );
-  CalibfName.ReplaceAll("root","txt");
-  CalibfName = "./gBarrelNumber_Calib_"+CalibfName;
-
-
-
-*/
 
 
 
