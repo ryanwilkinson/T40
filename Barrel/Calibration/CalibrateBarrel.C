@@ -73,12 +73,15 @@ double fDownstream_E(double energy, unsigned short wedge, unsigned short sector)
 
 
 // MAIN
-void CalibrateBarrel(TString tripleAlphaFileName="./ER1.root",
-					           TString pathToMatchsticks="./Matchsticks_Calib.txt",
+//void CalibrateBarrel(TString tripleAlphaFileName="/home/shuyaota/midas2nptool/root/EXPT5/R1_0.root",
+void CalibrateBarrel(TString tripleAlphaFileName="/home/shuyaota/midas2nptool/root/EXPT5/ER395_0.root",
+//void CalibrateBarrel(TString tripleAlphaFileName="/home/shuyaota/midas2nptool/root/EXPT5_New170725/R1_0.root",
+//void CalibrateBarrel(TString tripleAlphaFileName="/media/gchristian/HD1/T4T/root/EXPT6/ER29_1.root",
+					           TString pathToMatchsticks="/home/shuyaota/nptool/Projects/T40/Calibration/Matchsticks_Calib.txt",
 									 	 TString pathToFittingBounds="./FittingBounds.txt"){
 
   //generate the outputFileName
-  TString plotsFileName="./ER192_inspectBarrelHisto.root";
+  TString plotsFileName="./ER29_1_inspectBarrelHisto.root";
 
   //global variable
   gELossAlphaInSi = new NPL::EnergyLoss("He4_Si.SRIM","SRIM",100);
@@ -118,7 +121,9 @@ void CalibrateBarrel(TString tripleAlphaFileName="./ER1.root",
 
     for (int strip=1; strip<=4; strip++){
       gStripNumber = strip ;
-		if ((detector==2 && strip==4) || (detector==4 && strip ==2)|| (detector==4 && strip ==3) || (detector== 7 && strip ==1) || (detector== 7 && strip ==3) || (detector== 7 && strip ==4) || (detector== 8)
+		//by Shuya 170811
+		//if ((detector==2 && strip==4) || (detector==4 && strip ==2)|| (detector==4 && strip ==3) || (detector== 7 && strip ==1) || (detector== 7 && strip ==3) || (detector== 7 && strip ==4) || (detector== 8)
+		if ((detector==1 && strip==3) || (detector==3) || (detector==5 && strip ==1)|| (detector==5 && strip ==3) || (detector== 6 && strip ==2) || (detector== 7 && strip ==3)
 
 
 /*|| (detector==3) ||
