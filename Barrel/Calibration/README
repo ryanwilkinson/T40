@@ -1,0 +1,9 @@
+CalibrateBarrelPosition.C needs pathways to:
+- Post Campaign Alpha Run without thresholds in the barrel
+- Matchstick Calibration Coefficients
+- FittingBounds.txt (as in previous calibration script)
+
+CalibrateBarrelEnergy.C
+- Experimental Alpha run
+- Matchstick Calibration Coefficients
+- Output .txt file from CalibrateBarrelPosition.C
