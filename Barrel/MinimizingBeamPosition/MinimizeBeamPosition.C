@@ -229,14 +229,17 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   TGraph* grStripvsZ = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripZ[0]);
   grStripvsZ->SetTitle(" HitPosition(Z) vs HyperStrip");
   grStripvsZ->SetMarkerStyle(20);
-
+  grStripvsZ->SetMarkerColor(kRed);
+   
   TGraph* grStripvsY = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripY[0]);
   grStripvsY->SetTitle(" HitPosition(Y) vs HyperStrip");
   grStripvsY->SetMarkerStyle(20);
+  grStripvsY->SetMarkerColor(kRed);
   
   TGraph* grStripvsX = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripX[0]);
   grStripvsX->SetTitle(" HitPosition(X) vs HyperStrip");
   grStripvsX->SetMarkerStyle(20);
+  grStripvsX->SetMarkerColor(kRed);
   
   TGraph* grStripvsPointZ = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gPointOnStripZ[0]);
   grStripvsPointZ->SetTitle(" Point on Strip Position(Z) vs HyperStrip");
