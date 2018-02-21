@@ -163,7 +163,7 @@ void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg2
     cout << "Angle provided: " << Angle << endl;
     cout << "File provided: " << data << endl;
     cout << "Assumed Source position input (mm) : " << ax << " " << ay << " " << az << endl;
-    cout << "NB0: The above assumed position \"MUST\" be the position of the assumed beam spot used\nduring the analysis \"AND\" calculated relative to the geometrical barrel centroid.\n" <<endl; 
+    cout << "NB0: The Assumed Source position input \"MUST\" be the position of the beam spot used\nduring the data analysis \"AND\" calculated relative to the geometrical barrel centroid.\n" <<endl; 
     }
   
   gAngle = Angle*TMath::DegToRad();
@@ -456,6 +456,7 @@ int Minimise(void){
     gFinalMinimPosition.SetXYZ(minPos[0],minPos[1],minPos[2]);
     gFinalMinimPositionError.SetXYZ(minPosErr[0],minPosErr[1],minPosErr[2]);
   }
+  cout  << "RESULT \n";
    cout << "BeamSpot (mm)    : " << gFinalMinimPosition.X() << " " << gFinalMinimPosition.Y() << " " << gFinalMinimPosition.Z() << "\n" ;
    cout << "BeamSpotErr (mm) : " << gFinalMinimPositionError.X() << " " << gFinalMinimPositionError.Y() << " " << gFinalMinimPositionError.Z() << "\n" ;
    cout << "NB1: Above are the \"ABSOLUTE\" positions, calculated relative to the geometrical centroid of the barrel." <<endl;
