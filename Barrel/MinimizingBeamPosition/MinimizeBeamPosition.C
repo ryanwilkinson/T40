@@ -25,6 +25,7 @@ strip angle fwhm_angle
 #include "TCanvas.h"
 #include "TGraph.h"
 #include "TGraphErrors.h"
+#include "TGraphAsymmErrors.h"
 #include "TVector3.h"
 #include "TMath.h"
 #include "Math/Minimizer.h"
@@ -56,6 +57,7 @@ class clsLine3D{
   public:
 	TVector3 fPoint; // point on the line
 	TVector3 fDir; // directing vector
+	
 	public:
 	//functions
 	clsLine3D(TVector3 p,TVector3 l){
@@ -64,9 +66,19 @@ class clsLine3D{
 		}
 	~clsLine3D();
 
+
 	TVector3 GetPoint(double t){ 
 		return (t*fDir+fPoint);
 		}
+		
+		
+	double GetPointLineDistance(TVector3 p){
+	  TVector3 v1 = fPoint-p; // vector to arb. point on line
+	  TVector3 v2 = (v1.Dot(fDir))*fDir; 
+	  v1 = v1-v2;
+		return v1.Mag();
+		}	
+		
 };
 
 
@@ -100,9 +112,13 @@ class clsPlane3D{
   vector <int> gBarrelNumber;
   vector <int> gStripNumber;
   vector <double> gHyperStrip;
-  vector <double> gPhiStrip; // Phi of a strip
+  vector <double> gPhiOfStrip;// Phi of a strip [0,360]
   vector <double> gDataAngle;
-  vector <double> gDataAngleSigma;
+  vector <double> gDataAngleErr;
+  vector <double> gDataHitOnStripZ; //Calculated from gDataAngle and assumed beam position
+  vector <double> gDataHitOnStripZErrPlus; // this correspond to Angle - AngleSigma
+  vector <double> gDataHitOnStripZErrMinus;
+  vector <double> gDataHitPhi;      //Calculated from gDataAngle and assumed beam position
   vector <double> gNull;
   vector <double> gAssumedAngle;
   vector <double> gAssumedPhiAngle;
@@ -117,8 +133,8 @@ class clsPlane3D{
   
   //TH3F* gHist3D = new TH3F("3d","3d",100,-50,50,100,-50,50,200,-100,100);
     
-  //recycled with every iteration
-  //...
+  //fixed
+  TVector3 gUserBeamSpot; 
   
   //final result
 	TVector3 gFinalMinimPosition;
@@ -129,13 +145,13 @@ TVector3 GetLinePlaneIntersect(clsLine3D* l,clsPlane3D* p);
 int Minimise(void); // numerical minimisation function which produces the final calibration parameters
 double GetChiSquare(const double parameters[]); // returns a chi squared value 
 TVector3 GetHitOnStrip(TVector3 Beamspot, int StripNumber, double angle); // calculate impact position on strip middle line
-double GetParticleAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate angle from position assuming beam spot
-double GetParticlePhiAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate phi angle from position assuming beam spot
+double GetHitThetaAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate angle from position assuming beam spot
+double GetHitPhiAngle(TVector3 HitPosition, TVector3 BeamSpot); // Calculate phi angle [0,360] from position assuming beam spot
 TVector3 GetNormalOnDetector(double hyperstrip);
 TVector3 GetPointOnStrip(double hyperstrip, double pos=0); // pos = [-1;+1]
 
 // MAIN
-void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg25.txt"){
+void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg25.txt", double ax=0, double ay=0, double az=0){
 
   if(Angle==-1) {
     cout << " ERROR ---- Provide Angle ! ----- "<< endl; 
@@ -143,11 +159,16 @@ void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg2
     exit(-1); 
   }
   else {
-    cout << " Angle provided: " << Angle << endl;
-    cout << "  File provided: " << data << endl;
+    cout << endl; 
+    cout << "Angle provided: " << Angle << endl;
+    cout << "File provided: " << data << endl;
+    cout << "Assumed Source position input (mm) : " << ax << " " << ay << " " << az << endl;
+    cout << "NB0: The above assumed position \"MUST\" be the position of the assumed beam spot used\nduring the analysis \"AND\" calculated relative to the geometrical barrel centroid.\n" <<endl; 
     }
   
   gAngle = Angle*TMath::DegToRad();
+  gUserBeamSpot.SetXYZ(ax,ay,az);
+  
 // Read the data file and store values in c-vectors
   int barrel,strip, hstrip;
   double angle, sangle;
@@ -165,7 +186,7 @@ void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg2
       gStripNumber.push_back(strip);
       gHyperStrip.push_back((barrel-1)*4+strip);
       gDataAngle.push_back(angle);
-      gDataAngleSigma.push_back(sangle);
+      gDataAngleErr.push_back(sangle);
       gNull.push_back(0); // for plotting purposes
       //cout << " Reading " << barrel << " " << strip << " " << (barrel-1)*4+strip << " " <<  angle << " " << sangle << endl; 
     }
@@ -175,21 +196,43 @@ void MinimizeBeamPosition(double Angle=-1, TString data="sample_BarrelAngles_Mg2
  
  
   TNtuple *gHitScatterPlot = new TNtuple("gHitScatterPlot", "gHitScatterPlot", "x:y:z:hyperstrip");
+  gHitScatterPlot->Fill(gUserBeamSpot.X(), gUserBeamSpot.Y(), gUserBeamSpot.Z(),-1);
    
 // Construct the absolute positions of the central line along every strip
 for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   TVector3 temp = GetPointOnStrip(gHyperStrip[i],0);
   gPointOnStrip.push_back(temp);
+  gPointOnStripZ.push_back(temp.Z());
   gPointOnStripY.push_back(temp.Y());
-  gPointOnStripX.push_back(temp.X());
-  if(temp.X()>0 && temp.Y()>0 )     gPointOnStripZ.push_back(TMath::RadToDeg()*TMath::ATan((temp.Y()/temp.X())));
-  if(temp.X()>0 && temp.Y()<0 )     gPointOnStripZ.push_back(TMath::RadToDeg()*TMath::ATan((temp.Y()/temp.X())));
-  if(temp.X()<0 && temp.Y()>0 )     gPointOnStripZ.push_back(TMath::RadToDeg()*TMath::ATan((temp.Y()/temp.X()))+180);
-  if(temp.X()<0 && temp.Y()<0 )     gPointOnStripZ.push_back(TMath::RadToDeg()*TMath::ATan((temp.Y()/temp.X()))-180);
-  gPhiStrip.push_back(temp.Phi()*TMath::RadToDeg());
+  gPointOnStripX.push_back(temp.X()); 
+  double phi_360 = temp.Phi()*TMath::RadToDeg();
+  if(temp.Y()<0)  phi_360= 360+phi_360;  
+  gPhiOfStrip.push_back(phi_360);
   
   //Fill this point in the Ntuple 
   gHitScatterPlot->Fill(temp.X(), temp.Y(), temp.Z(),gHyperStrip[i]);
+  
+  //Calculate z and phi from data with respect to the assumed beam spot
+    clsLine3D* CentralStripLine = new clsLine3D(temp, TVector3(0,0,1)/*Strips are always along this vector*/ ); //Calculate central line of a strip
+    double distance = CentralStripLine->GetPointLineDistance(gUserBeamSpot);//Calculate the shortest (perp) distance from the beam spot to the line
+    double z0 = distance/TMath::Tan(gDataAngle[i]*deg);//Calculate z wrt to beamspot z, and fill the absolute value (in case the beam spot is not at 0,0,0
+    z0+=gUserBeamSpot.Z();
+    gDataHitOnStripZ.push_back(z0);
+   //repeat same procedure for Errors
+    double z = distance/TMath::Tan((gDataAngle[i]-gDataAngleErr[i])*deg);
+    z+=gUserBeamSpot.Z();
+    gDataHitOnStripZErrPlus.push_back(fabs(z-z0));
+    z = distance/TMath::Tan((gDataAngle[i]+gDataAngleErr[i])*deg);
+    z+=gUserBeamSpot.Z();
+    gDataHitOnStripZErrMinus.push_back(fabs(z-z0));
+    
+    
+  //Fill this point in the Ntuple 
+  temp = GetPointOnStrip(gHyperStrip[i],-1);
+  gHitScatterPlot->Fill(temp.X(), temp.Y(), temp.Z(),gHyperStrip[i]);
+  temp = GetPointOnStrip(gHyperStrip[i],+1);
+  gHitScatterPlot->Fill(temp.X(), temp.Y(), temp.Z(),gHyperStrip[i]);
+  
   
   //inspect
   //cout << gHyperStrip[i] << "  " <<  temp.Phi()*TMath::RadToDeg()<< endl ; 
@@ -199,7 +242,7 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
 // perform the numerical minimisation
   int result = 0 ;
   result = Minimise(); 
-  cout << "Minimizing Result " << result << endl;
+  cout << "Minimizing Result " << result << endl << endl;
   
   //Fill in the 3D after minimisation
   gHitScatterPlot->Fill(gFinalMinimPosition.X(), gFinalMinimPosition.Y(), gFinalMinimPosition.Z(),0);
@@ -210,19 +253,22 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   TCanvas* canInspection= new TCanvas("canInspection","canInspection",650,650);
   canInspection->Divide(3,2);
   
-  TGraphErrors* grStripvsData = new TGraphErrors(gDataAngle.size(),&gHyperStrip[0],&gDataAngle[0],&gNull[0],&gDataAngleSigma[0]);
+  TGraphErrors* grStripvsData = new TGraphErrors(gDataAngle.size(),&gHyperStrip[0],&gDataAngle[0],&gNull[0],&gDataAngleErr[0]);
   grStripvsData->SetTitle("Theta (minimised) vs HyperStrip");
-  grStripvsData->SetMarkerStyle(24);
+  grStripvsData->SetMarkerColor(kBlack);
+  grStripvsData->SetMarkerStyle(33);
+  grStripvsData->SetMarkerSize(2.3);
   
   TGraphErrors* grStripvsAssumedData = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gAssumedAngle[0],&gNull[0],&gNull[0]);
-  grStripvsAssumedData->SetMarkerColor(2);
+  grStripvsAssumedData->SetMarkerColor(kRed);
   grStripvsAssumedData->SetMarkerStyle(20);
   
   TGraph* grThetavsPhi = new TGraphErrors(gAssumedAngle.size(),&gAssumedPhiAngle[0],&gAssumedAngle[0]);
   grThetavsPhi->SetTitle("Theta (minimised) vs Phi (minimised)");
+  grThetavsPhi->SetMarkerColor(kRed);
   grThetavsPhi->SetMarkerStyle(20);
   
-  TGraph* grStripvsPhi = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gPhiStrip[0]);
+  TGraph* grStripvsPhi = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gPhiOfStrip[0]);
   grStripvsPhi->SetTitle(" Phi vs HyperStrip");
   grStripvsPhi->SetMarkerStyle(20);
   
@@ -230,7 +276,13 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   grStripvsZ->SetTitle(" HitPosition(Z) vs HyperStrip");
   grStripvsZ->SetMarkerStyle(20);
   grStripvsZ->SetMarkerColor(kRed);
-   
+  
+  TGraph* grStripvsDataZ = new TGraphAsymmErrors(gAssumedAngle.size(),&gHyperStrip[0],&gDataHitOnStripZ[0],&gNull[0],&gNull[0],&gDataHitOnStripZErrMinus[0],&gDataHitOnStripZErrPlus[0]);
+  grStripvsDataZ->SetTitle(" HitPosition(Z) (Data and Minimised) vs HyperStrip");
+  grStripvsDataZ->SetMarkerStyle(33);
+  grStripvsDataZ->SetMarkerColor(kBlack);
+  grStripvsDataZ->SetMarkerSize(2.3);
+
   TGraph* grStripvsY = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripY[0]);
   grStripvsY->SetTitle(" HitPosition(Y) vs HyperStrip");
   grStripvsY->SetMarkerStyle(20);
@@ -263,9 +315,9 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   grThetavsPhi->Draw("ap");
   canInspection->cd(3);
   grStripvsPhi->Draw("ap");
-  grStripvsPointZ->Draw("same p");
   canInspection->cd(4);
-  grStripvsZ->Draw("alp");
+  grStripvsDataZ->Draw("alp");
+  grStripvsZ->Draw("p same");
   canInspection->Draw();
   canInspection->cd(5);
   grStripvsY->Draw("alp");
@@ -292,22 +344,57 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   canInspection3D->Divide(2,2);
   gHitScatterPlot->SetMarkerStyle(20);
   canInspection3D->cd(1);
-  gHitScatterPlot->Draw("y:x","",""); 
+  gHitScatterPlot->Draw("y:x","hyperstrip>0","");
+  gHitScatterPlot->GetHistogram()->SetTitle("GREEN(1) -> RED(2)");
+  gHitScatterPlot->SetMarkerColor(kGreen);
+  gHitScatterPlot->Draw("y:x","z==0 && hyperstrip>=1 && hyperstrip<=4","same"); 
+  gHitScatterPlot->SetMarkerColor(kRed);
+  gHitScatterPlot->Draw("y:x","z==0 && hyperstrip>=5 && hyperstrip<=8","same"); 
+  gHitScatterPlot->SetMarkerStyle(47);
+  gHitScatterPlot->SetMarkerColor(kMagenta); gHitScatterPlot->Draw("y:x","hyperstrip==-1","same");
+  gHitScatterPlot->SetMarkerStyle(34);
+  gHitScatterPlot->SetMarkerColor(kCyan); gHitScatterPlot->Draw("y:x","hyperstrip==0","same");
+  
+
   canInspection3D->cd(2);
-  gHitScatterPlot->SetMarkerColor(kWhite);
   gHitScatterPlot->SetMarkerStyle(1);
-  gHitScatterPlot->Draw("y:x:z","",""); /*>>hxyz(100,-40,40,100,-40,40,100,-40,40)*/ 
+  gHitScatterPlot->Draw("y:x:z>>hisyxz","",""); /*>>hxyz(100,-40,40,100,-40,40,100,-40,40)*/ 
   gHitScatterPlot->SetMarkerStyle(7);
   gHitScatterPlot->SetMarkerColor(kBlue);
   gHitScatterPlot->Draw("y:x:z","z==0","same"); 
+  gHitScatterPlot->SetMarkerColor(kGreen);
+  gHitScatterPlot->Draw("y:x:z","z==0 && hyperstrip>=1 && hyperstrip<=4","same"); 
+  gHitScatterPlot->SetMarkerColor(kRed);
+  gHitScatterPlot->Draw("y:x:z","z==0 && hyperstrip>=5 && hyperstrip<=8","same"); 
   gHitScatterPlot->SetMarkerStyle(20);
+  gHitScatterPlot->SetMarkerColor(kMagenta); 
+  gHitScatterPlot->Draw("y:x:z","hyperstrip==-1","same");
+  gHitScatterPlot->SetMarkerColor(kCyan); 
+  gHitScatterPlot->Draw("y:x:z","hyperstrip==0","same");
   gHitScatterPlot->SetMarkerColor(kBlack);
-  gHitScatterPlot->Draw("y:x:z","z!=0","same"); 
+  gHitScatterPlot->Draw("y:x:z","z>0 && z<94./2 && (hyperstrip!=-1 && hyperstrip!=0) ","same");
+
+  
   canInspection3D->cd(3);
-  gHitScatterPlot->Draw("y:z","z>0",""); 
+  gHitScatterPlot->SetMarkerStyle(1);
+  gHitScatterPlot->Draw("y:z>>hisyz","",""); 
+  gHitScatterPlot->SetMarkerStyle(20);
+  gHitScatterPlot->SetMarkerColor(kMagenta); gHitScatterPlot->Draw("y:z","hyperstrip==-1","same");
+  gHitScatterPlot->SetMarkerColor(kCyan); gHitScatterPlot->Draw("y:z","hyperstrip==0","same");
+  gHitScatterPlot->SetMarkerColor(kBlack);
+  gHitScatterPlot->Draw("y:z","z>0 && z<94./2 && (hyperstrip!=-1 && hyperstrip!=0) ","same");
+
+  
   canInspection3D->cd(4);
-  gHitScatterPlot->Draw("x:z","z>0",""); 
-  canInspection3D->Draw();
+  gHitScatterPlot->SetMarkerStyle(1);
+  gHitScatterPlot->Draw("x:z>>hisyz","",""); 
+  gHitScatterPlot->SetMarkerStyle(20);
+  gHitScatterPlot->SetMarkerColor(kMagenta); gHitScatterPlot->Draw("x:z","hyperstrip==-1","same");
+  gHitScatterPlot->SetMarkerColor(kCyan); gHitScatterPlot->Draw("x:z","hyperstrip==0","same");
+  gHitScatterPlot->SetMarkerColor(kBlack);
+  gHitScatterPlot->Draw("x:z","z>0 && z<94./2 && (hyperstrip!=-1 && hyperstrip!=0) ","same");
+
+  
   
 }
 
@@ -343,8 +430,10 @@ int Minimise(void){
     gFinalMinimPosition.SetXYZ(minPos[0],minPos[1],minPos[2]);
     gFinalMinimPositionError.SetXYZ(minPosErr[0],minPosErr[1],minPosErr[2]);
   }
-   cout << "BeamSpot:    " << gFinalMinimPosition.X() << " " << gFinalMinimPosition.Y() << " " << gFinalMinimPosition.Z() << "\n" ;
-   cout << "BeamSpotErr: " << gFinalMinimPositionError.X() << " " << gFinalMinimPositionError.Y() << " " << gFinalMinimPositionError.Z() << "\n" ;
+   cout << "BeamSpot (mm)    : " << gFinalMinimPosition.X() << " " << gFinalMinimPosition.Y() << " " << gFinalMinimPosition.Z() << "\n" ;
+   cout << "BeamSpotErr (mm) : " << gFinalMinimPositionError.X() << " " << gFinalMinimPositionError.Y() << " " << gFinalMinimPositionError.Z() << "\n" ;
+   cout << "NB1: Above are the \"ABSOLUTE\" positions, calculated relative to the geometrical centroid of the barrel." <<endl;
+   cout << "NB2: The geometrical centroid of the barrel is \"NOT\" necessary at the center of the experiment.\n" <<endl; 
   return result;
 }
 
@@ -382,18 +471,17 @@ double GetChiSquare(const double parameters[]){
     gHitOnStripZ.push_back(HitPosition.Z());
     gHitOnStripY.push_back(HitPosition.Y());
     gHitOnStripX.push_back(HitPosition.X());
-    //Calculate assumed angle
-    double angle = GetParticleAngle(HitPosition,TVector3(0,0,0));
+    //Calculate assumed angle (or the angle generated by the analysis)
+    double angle = GetHitThetaAngle(HitPosition,gUserBeamSpot);
     gAssumedAngle.push_back(angle*TMath::RadToDeg());
-    angle = GetParticlePhiAngle(HitPosition,TVector3(0,0,0));
-    gAssumedPhiAngle.push_back(angle*TMath::RadToDeg());
+    gAssumedPhiAngle.push_back(GetHitPhiAngle(HitPosition,gUserBeamSpot));
   } 
   
   for(unsigned int i=0; i<gHyperStrip.size(); i++){
     //cout << " Assumed " << gAssumedAngle[i] << endl; 
     diff = (gAssumedAngle[i]-gDataAngle[i]);
     //ChiSquare += diff*diff; // all have the same weight
-    ChiSquare += diff*diff/(gDataAngleSigma[i]*gDataAngleSigma[i]);
+    ChiSquare += diff*diff/(gDataAngleErr[i]*gDataAngleErr[i]);
   }
   ChiSquare = ChiSquare/(gHyperStrip.size()-3); // 3 is the parameters size 
   
@@ -437,7 +525,7 @@ TVector3 GetPointOnStrip(double hyperstrip, double pos){ // pos = [-1;+1]
 
 
 /*****************************************************************************************************************/
-double GetParticleAngle(TVector3 HitPosition, TVector3 BeamSpot){ // Calculate angle from position assuming beam spot
+double GetHitThetaAngle(TVector3 HitPosition, TVector3 BeamSpot){ // Calculate angle from position assuming beam spot
 	
 	TVector3 zaxis(0,0,1);
 	TVector3 particle = HitPosition - BeamSpot;
@@ -446,12 +534,14 @@ double GetParticleAngle(TVector3 HitPosition, TVector3 BeamSpot){ // Calculate a
 }
 
 /*****************************************************************************************************************/
-double GetParticlePhiAngle(TVector3 HitPosition, TVector3 BeamSpot){ // Calculate angle from position assuming beam spot
+double GetHitPhiAngle(TVector3 HitPosition, TVector3 BeamSpot){ // Calculate angle from position assuming beam spot
 	
 	TVector3 xaxis(1,0,0);
 	TVector3 particle = HitPosition - BeamSpot;
+	double angle = particle.Angle(xaxis)*TMath::RadToDeg();
+	if (particle.Y()<0) angle = 360-angle;
 	
-  return( particle.Angle(xaxis) ) ;
+  return( angle ) ;
 }
 
 
