@@ -251,7 +251,7 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
     
   //Show results
   TCanvas* canInspection= new TCanvas("canInspection","canInspection",650,650);
-  canInspection->Divide(3,2);
+  canInspection->Divide(2,2);
   
   TGraphErrors* grStripvsData = new TGraphErrors(gDataAngle.size(),&gHyperStrip[0],&gDataAngle[0],&gNull[0],&gDataAngleErr[0]);
   grStripvsData->SetTitle("Theta (minimised) vs HyperStrip");
@@ -269,7 +269,7 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   grThetavsPhi->SetMarkerStyle(20);
   
   TGraph* grStripvsPhi = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gPhiOfStrip[0]);
-  grStripvsPhi->SetTitle(" Phi vs HyperStrip");
+  grStripvsPhi->SetTitle(" Phi (of Strip) vs HyperStrip");
   grStripvsPhi->SetMarkerStyle(20);
   
   TGraph* grStripvsZ = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripZ[0]);
@@ -277,12 +277,23 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   grStripvsZ->SetMarkerStyle(20);
   grStripvsZ->SetMarkerColor(kRed);
   
-  TGraph* grStripvsDataZ = new TGraphAsymmErrors(gAssumedAngle.size(),&gHyperStrip[0],&gDataHitOnStripZ[0],&gNull[0],&gNull[0],&gDataHitOnStripZErrMinus[0],&gDataHitOnStripZErrPlus[0]);
-  grStripvsDataZ->SetTitle(" HitPosition(Z) (Data and Minimised) vs HyperStrip");
+  TGraphAsymmErrors* grStripvsDataZ = new TGraphAsymmErrors(gAssumedAngle.size(),&gHyperStrip[0],&gDataHitOnStripZ[0],&gNull[0],&gNull[0],&gDataHitOnStripZErrMinus[0],&gDataHitOnStripZErrPlus[0]);
+  grStripvsDataZ->SetTitle(" HitPosition(Z) (Data and minimized) vs HyperStrip");
   grStripvsDataZ->SetMarkerStyle(33);
   grStripvsDataZ->SetMarkerColor(kBlack);
   grStripvsDataZ->SetMarkerSize(2.3);
 
+
+  TGraph* grStripvsMinimizedPhi = new TGraphErrors(gAssumedAngle.size(),&gPhiOfStrip[0],&gAssumedPhiAngle[0]);
+  grStripvsMinimizedPhi->SetTitle(" Phi (minimised) vs Phi (of Strip)");
+  grStripvsMinimizedPhi->SetMarkerStyle(20);
+  grStripvsMinimizedPhi->SetMarkerColor(kRed);
+
+   TGraph* grHyperStripvsMinimizedPhi = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gAssumedPhiAngle[0]);
+  grHyperStripvsMinimizedPhi->SetTitle(" Phi (minimised) vs Phi (of Strip)");
+  grHyperStripvsMinimizedPhi->SetMarkerStyle(20);
+  grHyperStripvsMinimizedPhi->SetMarkerColor(kRed);
+   
   TGraph* grStripvsY = new TGraphErrors(gAssumedAngle.size(),&gHyperStrip[0],&gHitOnStripY[0]);
   grStripvsY->SetTitle(" HitPosition(Y) vs HyperStrip");
   grStripvsY->SetMarkerStyle(20);
@@ -307,21 +318,26 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   grStripvsPointX->SetTitle(" Point on Strip Position(X) vs HyperStrip");
   grStripvsPointX->SetMarkerStyle(20);
   
+  TGraphAsymmErrors* grDataZvsPhi = new TGraphAsymmErrors(gAssumedAngle.size(),&gPhiOfStrip[0],&gDataHitOnStripZ[0],&gNull[0],&gNull[0],&gDataHitOnStripZErrMinus[0],&gDataHitOnStripZErrPlus[0]);
+  grDataZvsPhi->SetTitle("HitPosition(Z) (Data and minimised) vs Phi (of Strip)");
+  grDataZvsPhi->SetMarkerStyle(33);
+  grDataZvsPhi->SetMarkerColor(kBlack);
+  grDataZvsPhi->SetMarkerSize(2.3);
+  
+ 
+  TGraph* grMinimZvsPhi = new TGraphErrors(gAssumedAngle.size(),&gPhiOfStrip[0],&gHitOnStripZ[0]);
+  grMinimZvsPhi->SetTitle(" HitPosition(Z) vs HyperStrip");
+  grMinimZvsPhi->SetMarkerStyle(20);
+  grMinimZvsPhi->SetMarkerColor(kRed);
   
   canInspection->cd(1);
-  grStripvsData->Draw("alp"); 
-  grStripvsAssumedData->Draw("p same"); 
+  //grStripvsMinimizedPhi->Draw("ap");
+  grHyperStripvsMinimizedPhi->Draw("ap");
   canInspection->cd(2);
-  grThetavsPhi->Draw("ap");
-  canInspection->cd(3);
   grStripvsPhi->Draw("ap");
-  canInspection->cd(4);
-  grStripvsDataZ->Draw("alp");
-  grStripvsZ->Draw("p same");
-  canInspection->Draw();
-  canInspection->cd(5);
+  canInspection->cd(3);
   grStripvsY->Draw("alp");
-  canInspection->cd(6);
+  canInspection->cd(4);
   grStripvsX->Draw("alp");
   /*
   canInspection->cd(7);
@@ -335,8 +351,18 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   canInspection->Draw();
     
   TCanvas* canResult= new TCanvas("canResult","canResult",650,650);
+  canResult->Divide(2,2);
+  canResult->cd(1);
   grStripvsData->Draw("alp"); 
   grStripvsAssumedData->Draw("p same"); 
+  canResult->cd(2);
+  grThetavsPhi->Draw("ap");
+  canResult->cd(3);
+  grStripvsDataZ->Draw("alp");
+  grStripvsZ->Draw("p same");
+  canResult->cd(4);
+  grDataZvsPhi->Draw("ap");
+  grMinimZvsPhi->Draw("p same");
   canResult->Draw();
 
 
