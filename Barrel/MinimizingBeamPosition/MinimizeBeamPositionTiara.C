@@ -170,6 +170,8 @@ class clsPlane3D{
   double gFinalHBeamDeviat;
   double gFinalHBeamDeviatErr;
   TVector3 gFinalBeamDirection;
+  double gFinalZhyball;   
+  double gFinalBeamEnergy;
 
   //Functions
   TVector3 GetLinePlaneIntersect(clsLine3D* l,clsPlane3D* p);
@@ -315,7 +317,7 @@ void MinimizeBeamPositionTiara(double Angle=-1, // angle in degree
       gBarrelNumber.push_back(barrel);
       gStripNumber.push_back(strip);
       gHyperStrip.push_back((barrel-1)*4+strip);
-      gDataBarrel.push_back(bdata-4.84);
+      gDataBarrel.push_back(bdata);
       gDataBarrelErr.push_back(bdataerr);
       gNull.push_back(0); // for plotting purposes
       //cout << " Reading " << barrel << " " << strip << " " << (barrel-1)*4+strip << " " <<  bdata << " " << bdataerr << endl; 
@@ -603,7 +605,7 @@ for (unsigned i = 0 ; i < gHyperStrip.size() ; i++ ){
   
 //Sanity check, get intersection Beam wit hyball Plane
 clsLine3D* aBeam       = new clsLine3D(gFinalMinimPosition,gFinalBeamDirection); 
-clsPlane3D* HyballPlan  = new clsPlane3D(TVector3(0,0,-147), TVector3(0,0,1)); //
+clsPlane3D* HyballPlan  = new clsPlane3D(TVector3(0,0,gFinalZhyball), TVector3(0,0,1)); //
 TVector3 Intersect = GetLinePlaneIntersect(aBeam,HyballPlan);
 cout << " Intersect (beam, Hyball) : " << Intersect.X() << " "<< Intersect.Y() << " " << Intersect.Z() << ")\n" ;
 
@@ -625,23 +627,23 @@ int Minimization(void){
 	ROOT::Math::Functor f(&GetChiSquare,dim);
   //parameters: X,Y,Z of beam spot, Vertical and horizontal deviations, Calibration offsets, HyballZ, beam energy
 	//double variable[] = {0,0,0,0,0,0,0,gHyballZ,gReaction.GetBeamEnergy()}; 
-	double variable[] = {2.9,4.5,-2.3,0,0,0,0,gHyballZ, gReaction.GetBeamEnergy()};  
-  double step[]     = {0.1,0.1,0.1,0.01,0.01,0.1,0.1,0.1,0.1};
+	double variable[] = {-0.08,4.84,2.63,  0.5,0.5,   0,0,      gHyballZ, gReaction.GetBeamEnergy()};  
+  double step[]     = {0.1,0.1,0.1,     0.01,0.01,  0.1,0.1,  0.1,0.1};
 
 	min->SetFunction(f);
 	// Set the free variables to be minimized
   for(unsigned int i = 0 ; i < dim ; i++)
 	  min->SetVariable(i,Form("Par%i",i),variable[i], step[i]);
 	
-	min->SetVariableLimits(0,variable[0]-3, variable[0]+8); //X mm
-	min->SetVariableLimits(1,variable[1]-3, variable[1]+8); //Y mm
-	min->SetVariableLimits(2,variable[2]-8, variable[2]+8); //Z mm
+	min->SetVariableLimits(0,variable[0]-2, variable[0]+2); //X mm
+	min->SetVariableLimits(1,variable[1]-0, variable[1]+7); //Y mm
+	min->SetVariableLimits(2,variable[2]-2, variable[2]+4); //Z mm
 	min->SetVariableLimits(3,variable[3]-2, variable[3]+2); //V degrees
 	min->SetVariableLimits(4,variable[4]-2, variable[4]+2); //H degrees
   min->SetVariableLimits(5,variable[5]-2, variable[5]+2); //Calibration offset
 	min->SetVariableLimits(6,variable[6]-2, variable[6]+2); //Calibration offset
-  min->SetVariableLimits(7,variable[7]-3, variable[7]+3); // Hyball Z in mm
-  min->SetVariableLimits(8,variable[8]-3, variable[8]+3); // BeamEnergy in MeV
+  min->SetVariableLimits(7,variable[7]-3, variable[7]+3); //Hyball Z in mm
+  min->SetVariableLimits(8,variable[8]-2, variable[8]+2); //BeamEnergy in MeV
 
 //Uncommet to fix the variable value
 	//min->FixVariable(0);  //X mm
@@ -649,10 +651,10 @@ int Minimization(void){
 	//min->FixVariable(2);  //Z mm
   //min->FixVariable(3);  //V degrees
   //min->FixVariable(4);  //H degrees
-	//min->FixVariable(5);    //Calib offset state 1
-	//min->FixVariable(6);    //Calib offset state 2
-  min->FixVariable(7);  //Hyball Z shift
-  min->FixVariable(8);  //Beam Energy Shift
+	min->FixVariable(5);    //Calib offset state 1
+	min->FixVariable(6);    //Calib offset state 2
+  //min->FixVariable(7);  //Hyball Z shift
+  //min->FixVariable(8);  //Beam Energy Shift
 
 	gFinalMinimPosition.SetXYZ(-10, -10, -10);
   gFinalMinimPositionError.SetXYZ(-10, -10, -10);
@@ -661,6 +663,8 @@ int Minimization(void){
 	gFinalVBeamDeviatErr=-1;
   gFinalHBeamDeviatErr=-1;
   gFinalBeamDirection.SetXYZ(-10,-10,-10);
+  gFinalBeamEnergy=-1;
+  gFinalZhyball=-1;
 
   int result = min->Minimize();
 
@@ -679,7 +683,9 @@ int Minimization(void){
     gFinalBeamDirection.SetXYZ(
       cos(gFinalVBeamDeviat*TMath::DegToRad())*sin(gFinalHBeamDeviat*TMath::DegToRad()),
       sin(gFinalVBeamDeviat*TMath::DegToRad())*cos(gFinalHBeamDeviat*TMath::DegToRad()),
-      cos(gFinalVBeamDeviat*TMath::DegToRad())*cos(gFinalHBeamDeviat*TMath::DegToRad()));
+      cos(gFinalVBeamDeviat*TMath::DegToRad())*cos(gFinalHBeamDeviat*TMath::DegToRad()));      
+    gFinalZhyball=minPos[7];   
+    gFinalBeamEnergy=minPos[8];
   //}
   
    cout  << "RESULT " << result << "  \n";
@@ -690,10 +696,12 @@ int Minimization(void){
    cout << " (=> Beam Direction : " << gFinalBeamDirection.X() << " "
                                     << gFinalBeamDirection.Y() << " " 
                                     << gFinalBeamDirection.Z() << ")\n\n" ;
-   cout << "Shift Proton E1 (MeV)  : " << minPos[5] << " +/- " << minPosErr[5] << "\n" ;
-   cout << "Shift Proton E2 (MeV)  : " << minPos[6] << " +/- "  << minPosErr[6] << "\n\n" ;
+                                    
    cout << "Shift in Z (mm)        : " << minPos[7] << " +/- "  << minPosErr[7] << "\n" ;
    cout << "Beam Energy in (MeV)   : " << minPos[8] << " +/- "  << minPosErr[8] << "\n\n" ;
+   cout << "Shift Proton E1 (MeV)  : " << minPos[5] << " +/- " << minPosErr[5] << "\n" ;
+   cout << "Shift Proton E2 (MeV)  : " << minPos[6] << " +/- "  << minPosErr[6] << "\n\n" ;
+      
    cout << "NB1: Above are the \"ABSOLUTE\" positions, calculated relative to the geometrical centroid of the barrel." <<endl;
    cout << "NB2: The geometrical centroid of the barrel is \"NOT\" necessary at the center of the experiment.\n" <<endl; 
   return result;
@@ -704,11 +712,14 @@ double GetChiSquare(const double parameters[]){
 
   double chi2barrel = GetChiSquareBarrelZ(parameters); // beam spot and beam direction
   double chi2hyball = GetChiSquareHyball(parameters);// beam spot and beam direction
-  //cout << " ChiSquare:  Hyball ; Barrel       " <<  chi2hyball << " " << chi2barrel 
-  //     << "               ratio: " << chi2hyball/chi2barrel<< endl; 
+  chi2barrel*=0.018;
+  chi2hyball*=1.00;
   //Do some operations
-  double chi2 = (1*chi2barrel) + (0.2*chi2hyball);
+  double chi2 = (chi2barrel) + (chi2hyball);
 
+  cout << " ChiSquare:  Barrel=" <<  chi2barrel << "     Hyball=" << chi2hyball 
+       << "               ratio: " << chi2hyball/chi2barrel<< endl; 
+       
 return chi2;
 
 }
