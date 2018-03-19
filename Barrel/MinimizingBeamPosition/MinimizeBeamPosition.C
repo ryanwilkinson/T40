@@ -61,7 +61,7 @@ class clsLine3D{
 		fDir = l; 
 		fPoint = lp;
 		}
-	~clsLine3D();
+	//~clsLine3D();
 
 	TVector3 GetPoint(double t){ 
 		return (t*fDir+fPoint);
@@ -90,7 +90,7 @@ class clsPlane3D{
 		fPoint = p1; // point on plane
 		}
 				
-	~clsPlane3D();
+	//~clsPlane3D();
 };
 
 //Global variables
