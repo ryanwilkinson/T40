@@ -889,9 +889,12 @@ TVector3 GetPointOnStrip(double hyperstrip, double pos){ // pos = [-1;+1]
   //cout << " Extracting: " << det << " " << strip << " " << hyperstrip << endl ;
    
 	// All in mm
-  double INNERBARREL_PCB_Width  = 27.76;
+//by Shuya 180320
+  //double INNERBARREL_PCB_Width  = 27.76;
+  double INNERBARREL_PCB_Width  = 27.1;
   double INNERBARREL_ActiveWafer_Length = 94.80;
-  double INNERBARREL_ActiveWafer_Width = 24.0;
+  //double INNERBARREL_ActiveWafer_Width = 24.0;
+  double INNERBARREL_ActiveWafer_Width = 22.2;
   double StripPitch = INNERBARREL_ActiveWafer_Width/4.0;
   //Calculate the hit position as if it hits detector 3 (at 12 o'clock i.e. perpendicular on the positive y-axis)
   double Z = (0.5*INNERBARREL_ActiveWafer_Length) * (pos);
